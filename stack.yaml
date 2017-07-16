@@ -1,0 +1,8 @@
+resolver: lts-8.23
+
+packages:
+- '.'
+
+nix:
+  pure: false
+  packages: [zlib]

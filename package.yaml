@@ -1,0 +1,10 @@
+executables:
+  webui:
+    main: Main.hs
+    dependencies:
+      - base
+      - hledger-lib
+      - http-types
+      - wai
+      - wai-middleware-static
+      - warp
