@@ -1,0 +1,111 @@
+body {
+    margin: 1.5em 3em;
+    font-family: CallunaSansRegular;
+    font-size: 14px;
+    background-color: #fffaf0;
+}
+
+h1, h2 {
+    font-weight: normal;
+    text-align: center;
+}
+
+h1 {
+    font-size: 1.2em;
+}
+
+h1::before, h1::after {
+    content: " — ";
+}
+
+h2 {
+    font-size: 2em;
+}
+
+canvas {
+    height: 300px;
+    width: 300px;
+    margin: 0 auto;
+}
+
+table {
+    width: 100%;
+    font-size: 1.1rem;
+    border-collapse: collapse;
+}
+
+th, td {
+    padding: 0.5em;
+    border-bottom: 1px solid #ddd;
+    white-space: nowrap;
+}
+
+.nobottom th, .lightbottom th, .nobottom td {
+    border-bottom: none;
+}
+
+.lightbottom td {
+    border-bottom: 1px solid #eee;
+}
+
+th {
+    font-weight: bold;
+    text-align: left;
+}
+
+td {
+    text-align: left;
+    width: 99%;
+}
+
+td.good, td.bad {
+    text-align: center;
+}
+
+td.num {
+    text-align: right;
+}
+
+.good {
+    color: #7AAD28;
+}
+
+.bad {
+    color: #E2381F;
+}
+
+div {
+    box-sizing: border-box;
+    padding: 0 3em;
+    margin: 0.5em;
+}
+
+.container {
+    display: flex;
+}
+
+.container div {
+    flex: 1;
+}
+
+.container div + div {
+    border-left: 1px solid #ddd;
+}
+
+#history {
+    width: 60%;
+    margin: 0 auto;
+}
+
+#history p {
+    text-align: center;
+    font-size: 1.1rem;
+}
+
+@font-face {
+    font-family: 'CallunaSansRegular';
+    src: url('CallunaSansRegular-webfont.woff2') format('woff2'),
+         url('CallunaSansRegular-webfont.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+}
