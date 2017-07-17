@@ -14,12 +14,14 @@ h1 {
     font-size: 1.2em;
 }
 
-h1::before, h1::after {
-    content: " — ";
-}
-
 h2 {
     font-size: 2em;
+}
+
+h1 span {
+    display: inline-block;
+    width: 150px;
+    text-align: center;
 }
 
 canvas {

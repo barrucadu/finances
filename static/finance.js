@@ -1,3 +1,5 @@
+const THIS_MONTH = new Date().getMonth() + 1;
+
 function zeroish(val) {
     return val < 0.01 && val > -0.01;
 }
@@ -44,12 +46,21 @@ function renderAssets(raw_assets_data) {
         labels: Object.keys(raw_assets_data)
     }
 
-    let assets_ctx = document.getElementById('assets_chart').getContext('2d');
-    new Chart(assets_ctx, {
+    document.getElementById('assets').removeChild(document.getElementById('assets_chart'));
+
+    let canvas = document.createElement('canvas');
+    canvas.id = 'assets_chart';
+    canvas.width = 300;
+    canvas.height = 300;
+    document.getElementById('assets').appendChild(canvas);
+
+    let ctx = canvas.getContext('2d');
+    new Chart(ctx, {
         type: 'doughnut',
         data: assets_data,
         options: {
             responsive: false,
+            maintainAspectRatio: true,
             tooltips: {
                 callbacks: {
                     label: function(tooltipItem, data) {
@@ -95,7 +106,9 @@ function renderTable(raw_data, ele, flipGoodBad) {
         lastRow.appendChild(balance);
     }
 
-    lastRow.className = 'nobottom';
+    if(lastRow !== undefined) {
+        lastRow.className = 'nobottom';
+    }
 }
 
 function renderIncome(raw_income_data) {
@@ -152,8 +165,34 @@ function renderHistory(raw_history_data) {
     showAmount(total, totalDelta);
 }
 
-function renderFinances(data) {
+function renderFinancesFor(month) {
+    let httpRequest = new XMLHttpRequest();
+    httpRequest.onreadystatechange = function() {
+        if(httpRequest.readyState === XMLHttpRequest.DONE && httpRequest.status === 200) {
+            let response = JSON.parse(httpRequest.responseText);
+            renderFinances(month, response);
+        }
+    };
+    httpRequest.open('GET', (month == THIS_MONTH) ? '/data' : `/data?month=${month}`);
+    httpRequest.send();
+}
+
+function renderFinances(month, data) {
+    document.title = data.when;
     document.getElementById('when').innerText = data.when;
+
+    document.getElementById('back').onclick = () => renderFinancesFor(month - 1);
+    document.getElementById('next').onclick = () => renderFinancesFor(month + 1);
+    document.getElementById('back').style.visibility = (month == 1)  ? 'hidden' : 'visible';
+    document.getElementById('next').style.visibility = (month == 12) ? 'hidden' : 'visible';
+
+    document.onkeyup = function(e) {
+        if (e.key == 'ArrowLeft' && month > 1) {
+            renderFinancesFor(month - 1);
+        } else if (e.key == 'ArrowRight' && month < 12) {
+            renderFinancesFor(month + 1);
+        }
+    }
 
     renderAssets(data.assets);
     renderIncome(data.income);
@@ -206,13 +245,5 @@ window.onload = () => {
     });
 
     // Fetch the data
-    let httpRequest = new XMLHttpRequest();
-    httpRequest.onreadystatechange = function() {
-        if(httpRequest.readyState === XMLHttpRequest.DONE && httpRequest.status === 200) {
-            let response = JSON.parse(httpRequest.responseText);
-            renderFinances(response);
-        }
-    };
-    httpRequest.open('GET', '/data');
-    httpRequest.send();
+    renderFinancesFor(THIS_MONTH);
 };

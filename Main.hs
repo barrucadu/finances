@@ -1,13 +1,14 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Main where
 
-import           Control.Monad                 (mapM)
+import           Control.Arrow                 (second)
+import           Control.Monad                 (join, mapM)
 import           Data.Aeson                    (Value, object, (.=))
 import qualified Data.Aeson                    as A
 import           Data.Char                     (toUpper)
 import           Data.List                     (inits, mapAccumL, nub)
 import qualified Data.Map                      as M
-import           Data.Maybe                    (maybeToList)
+import           Data.Maybe                    (fromMaybe, maybeToList)
 import           Data.Ratio                    (Rational)
 import           Data.Semigroup                ((<>))
 import qualified Data.Text                     as T
@@ -16,27 +17,37 @@ import qualified Data.Time.Clock               as C
 import qualified Data.Time.Format              as C
 import           Hledger.Data.Types            as H
 import           Hledger.Read                  as H
-import           Network.HTTP.Types.Status     (ok200)
-import           Network.Wai                   (responseLBS)
-import           Network.Wai.Handler.Warp      (runEnv)
-import           Network.Wai.Middleware.Static (addBase, only, staticPolicy,
-                                                (<|>))
+import qualified Network.HTTP.Types.URI        as W
+import qualified Network.HTTP.Types.Status     as W
+import qualified Network.Wai                   as W
+import qualified Network.Wai.Handler.Warp      as W
+import qualified Network.Wai.Middleware.Static as W
+import           Text.Read                     (readMaybe)
 
 main :: IO ()
-main = runEnv 5000 $ serveStatic (\_ respond -> respond =<< serveDynamic) where
-  serveStatic  = staticPolicy $ only [("", "static/index.html")] <|> addBase "static"
-  serveDynamic = responseLBS ok200 [] . A.encode <$> financeData
+main = W.runEnv 5000 $ serveStatic (\req respond -> respond =<< serveDynamic req) where
+  serveStatic = W.staticPolicy $ W.only [("", "static/index.html")] W.<|> W.addBase "static"
+  serveDynamic req = fmap (W.responseLBS W.ok200 [] . A.encode) $ do
+    today <- C.utctDay <$> C.getCurrentTime
+    let qstr = map (second (fmap T.unpack)) . W.queryToQueryText . W.queryString $ req
+        qyear  = readMaybe =<< join (lookup "year"  qstr)
+        qmonth = readMaybe =<< join (lookup "month" qstr)
+        qday   = readMaybe =<< join (lookup "day"   qstr)
+    case qmonth of
+      Just m ->
+        let y = fromMaybe ((\(y,_,_) -> y) (C.toGregorian today)) qyear
+            d = fromMaybe (C.gregorianMonthLength y m) qday
+        in financeDataFor (C.fromGregorian y m d)
+      _ -> financeDataFor today
 
--- | Get the data from the default hledger journal for today.
-financeData :: IO Value
-financeData = do
-  today   <- C.getCurrentTime
-  journal <- H.defaultJournal
-  pure (dataFor (H.jtxns journal) (C.utctDay today))
+-- | Get the data from the default hledger journal for the given date.
+financeDataFor :: C.Day -> IO Value
+financeDataFor today =
+  dataFor today . H.jtxns <$> H.defaultJournal
 
 -- | Get the data for a specific day.
-dataFor :: [H.Transaction] -> C.Day -> Value
-dataFor txns today = object
+dataFor :: C.Day -> [H.Transaction] -> Value
+dataFor today txns = object
     [ "when"     .= T.pack (C.formatTime C.defaultTimeLocale "%B %_Y" today)
     , "assets"   .= balanceFrom (const epoch) assetAccount   id
     , "income"   .= balanceFrom monthStart    incomeAccount  negate
