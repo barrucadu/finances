@@ -40,7 +40,7 @@ function showAmount(ele, amount, brackets=false, flipGoodBad=false, noEmphasisGo
 function renderAssets(raw_assets_data) {
     let assets_data = {
         datasets: [{
-            data: Object.values(raw_assets_data).map(a => a.amount),
+            data: Object.values(raw_assets_data).map(a => (a.amount > -0.01) ? a.amount : 0),
             backgroundColor: Object.values(raw_assets_data).map(() => `rgb(${randRange(0,255)}, ${randRange(0,255)}, ${randRange(0,255)})`)
         }],
         labels: Object.keys(raw_assets_data)
@@ -72,7 +72,7 @@ function renderAssets(raw_assets_data) {
             },
             elements: {
                 center: {
-                    text: `${strAmount(assets_data.datasets[0].data.reduce((a,b) => a+b))}`,
+                    text: `${strAmount(Object.values(raw_assets_data).reduce((acc, d) => acc + d.amount, 0))}`,
                     color: '#36A2EB',
                     fontStyle: 'CallunaSansRegular',
                 }
