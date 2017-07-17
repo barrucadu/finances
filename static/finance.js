@@ -1,3 +1,7 @@
+function zeroish(val) {
+    return val < 0.01 && val > -0.01;
+}
+
 function randRange(min, max) {
   min = Math.ceil(min);
   max = Math.floor(max);
@@ -34,7 +38,7 @@ function showAmount(ele, amount, brackets=false, flipGoodBad=false, noEmphasisGo
 function renderAssets(raw_assets_data) {
     let assets_data = {
         datasets: [{
-            data: Object.values(raw_assets_data),
+            data: Object.values(raw_assets_data).map(a => a.amount),
             backgroundColor: Object.values(raw_assets_data).map(() => `rgb(${randRange(0,255)}, ${randRange(0,255)}, ${randRange(0,255)})`)
         }],
         labels: Object.keys(raw_assets_data)
@@ -70,7 +74,11 @@ function renderTable(raw_data, ele, flipGoodBad) {
     ele.innerHTML = '';
 
     let lastRow;
-    for (let source in raw_data) {
+    let sources = Object.keys(raw_data).sort();
+    for (let i = 0; i < sources.length; i ++) {
+        let source = sources[i];
+        if (zeroish(raw_data[source].amount)) continue;
+
         let title = document.createElement('th');
         title.innerText = source;
 
@@ -107,29 +115,33 @@ function renderHistory(raw_history_data) {
     let total = document.getElementById('history_total');
     table.innerHTML = '';
 
-    let totalBalance = 0;
+    let totalDelta = 0;
     let lastRow;
-    for (let day in raw_history_data) {
+    let days = Object.keys(raw_history_data).sort().reverse();
+    for (let i = 0; i < days.length; i ++) {
+        let day = days[i];
+
         let title = document.createElement('th');
         title.innerText = day;
 
-        for (let i = 0; i < raw_history_data[day].length; i ++) {
-            let entry = raw_history_data[day][i];
+        for (let j = 0; j < raw_history_data[day].length; j ++) {
+            let entry = raw_history_data[day][j];
+            if (zeroish(entry.delta)) continue;
 
             let description = document.createElement('td');
             description.innerText = entry.title;
-            let amount = document.createElement('td');
-            showAmount(amount, entry.amount)
-            amount.classList.add('num');
+            let delta = document.createElement('td');
+            showAmount(delta, entry.delta)
+            delta.classList.add('num');
 
             lastRow = table.insertRow();
             lastRow.className = 'lightbottom';
             lastRow.appendChild(title);
             lastRow.appendChild(description);
-            lastRow.appendChild(amount);
+            lastRow.appendChild(delta);
 
             title = document.createElement('th');
-            totalBalance += entry.amount;
+            totalDelta += entry.delta;
         }
 
         lastRow.className = '';
@@ -137,7 +149,7 @@ function renderHistory(raw_history_data) {
 
     lastRow.className = 'nobottom';
 
-    showAmount(total, totalBalance);
+    showAmount(total, totalDelta);
 }
 
 function renderFinances(data) {
@@ -192,4 +204,15 @@ window.onload = () => {
             }
         }
     });
+
+    // Fetch the data
+    let httpRequest = new XMLHttpRequest();
+    httpRequest.onreadystatechange = function() {
+        if(httpRequest.readyState === XMLHttpRequest.DONE && httpRequest.status === 200) {
+            let response = JSON.parse(httpRequest.responseText);
+            renderFinances(response);
+        }
+    };
+    httpRequest.open('GET', '/data');
+    httpRequest.send();
 };

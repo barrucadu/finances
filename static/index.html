@@ -5,49 +5,6 @@
     <script src="Chart.min.js" type="text/javascript"></script>
     <script src="finance.js" type="text/javascript"></script>
     <link rel="stylesheet" href="style.css" type="text/css">
-    <script type="text/javascript">
-const finance_data = {
-    when: 'October 2017',
-    assets: {
-        'Nationwide': 2500,
-        'Santander (eSaver)': 2400,
-        'Santander (main)': 1076.21,
-        'Vanguard': 1000
-    },
-    income: {
-        'Dad': {amount: 650, delta: 0},
-        'Donations': {amount: 6, delta: 6},
-        'Overleaf': {amount: 2310, delta: 2310}
-    },
-    budget: {
-        'Food': {amount: 85.16, delta: 0},
-        'Fun': {amount: 6.50, delta: 0},
-        'Household': {amount: 16.15, delta: 0},
-        'Servers': {amount: 1, delta: 0},
-    },
-    expenses: {
-        'Books': {amount: 35.94, delta: 35.94},
-        'Food': {amount: 114.84, delta: -131.73},
-        'Fun': {amount: 8.50, delta: -201.83},
-        'Google Apps': {amount: 2.75, delta: 0},
-        'Household': {amount: 8.85, delta: -24.90},
-        'Rent': {amount: 87, delta: 87},
-        'Servers': {amount: 38.50, delta: 1},
-        'Travel': {amount: 80, delta: -4.49},
-    },
-    history: {
-        '16/07': [ {title: 'Shopping', amount: -17.96} ],
-        '15/07': [ {title: 'Lunch', amount: -7.90},
-                   {title: 'Books', amount: -35.94},
-                   {title: 'Top up Oyster card', amount: -10} ],
-        '13/07': [ {title: 'Freenode Conference ticket', amount: -15},
-                   {title: 'Shopping', amount: -0.85},
-                   {title: 'Lunch', amount: -3.35},
-                   {title: 'Top up Oyster card', amount: -10},
-                   {title: 'lainon.life donation', amount: 4.29} ]
-    }
-};
-</script>
   </head>
   <body>
     <h1 id="when"></h1>
@@ -82,5 +39,4 @@ const finance_data = {
       <p><strong>Total:</strong> <span id="history_total"></span></p>
     </div>
   </body>
-    <script type="text/javascript">renderFinances(finance_data);</script>
 </html>

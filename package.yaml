@@ -3,8 +3,12 @@ executables:
     main: Main.hs
     dependencies:
       - base
+      - aeson
+      - containers
       - hledger-lib
       - http-types
+      - text
+      - time
       - wai
       - wai-middleware-static
       - warp
