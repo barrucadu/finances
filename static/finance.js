@@ -2,6 +2,15 @@ const THIS_MONTH = new Date().getMonth() + 1;
 
 var show_breakdown = false;
 
+function colour(str, alpha=1) {
+    let total = 0;
+    for (let i = 0; i < str.length; i ++) {
+        total += str.charCodeAt(i);
+    }
+
+    return `rgba(${total % 255}, ${(total * 7) % 255}, ${(total * 13) % 255}, ${alpha})`
+}
+
 function zeroish(val) {
     return val < 0.01 && val > -0.01;
 }
@@ -53,15 +62,14 @@ function renderAssetsBreakdown(breakdown_data) {
 
     let keys = Object.keys(data).sort();
     let total = Object.values(data).reduce((acc, d) => acc + d, 0);
-    let colours = keys.map(() => [randRange(0,255), randRange(0,255), randRange(0,255)]);
 
     new Chart(breakdown.getContext('2d'), {
         type: 'bar',
         data: {
             datasets: [{
                 data: keys.map(k => (data[k] > -0.01) ? 100 * data[k] / total : 0),
-                backgroundColor: colours.map(c => `rgba(${c[0]}, ${c[1]}, ${c[2]}, 0.2)`),
-                borderColor: colours.map(c => `rgb(${Math.max(0, c[0]-20)}, ${Math.max(0, c[1]-20)}, ${Math.max(0, c[2]-20)})`),
+                backgroundColor: keys.map(k => colour(k, 0.2)),
+                borderColor: keys.map(k => colour(k)),
                 borderWidth: 1
             }],
             labels: keys
@@ -173,7 +181,7 @@ function renderAssets(raw_data, refresh=false) {
     let keys = Object.keys(raw_assets_data);
     let colours = {};
     for (let i = 0; i < keys.length; i ++) {
-        colours[keys[i]] = `rgb(${randRange(0,255)}, ${randRange(0,255)}, ${randRange(0,255)})`;
+        colours[keys[i]] = colour(keys[i]);
     }
 
     document.getElementById('assets_chart_container').removeChild(document.getElementById('assets_chart'));
