@@ -85,12 +85,12 @@ function renderAssetsBreakdown(breakdown_data) {
     return breakdown;
 }
 
-function renderAssetsChart(raw_assets_data) {
+function renderAssetsChart(raw_assets_data, colours) {
     let keys = Object.keys(raw_assets_data).sort();
-    assets_data = {
+    let assets_data = {
         datasets: [{
             data: keys.map(k => (raw_assets_data[k].amount > -0.01) ? raw_assets_data[k].amount : 0),
-            backgroundColor: keys.map(() => `rgb(${randRange(0,255)}, ${randRange(0,255)}, ${randRange(0,255)})`)
+            backgroundColor: keys.map(k => colours[k]),
         }],
         labels: keys
     };
@@ -126,40 +126,50 @@ function renderAssetsChart(raw_assets_data) {
     return canvas;
 }
 
-function renderAssetsLegend(raw_assets_data) {
+function renderAssetsLegend(raw_assets_data, colours) {
     let legend = document.createElement('table');
     legend.id = 'assets_legend';
 
-    for (let i = 0; i < assets_data.datasets[0].data.length; i ++) {
-        if(zeroish(assets_data.datasets[0].data[i])) continue;
+    let keys = Object.keys(raw_assets_data).sort();
+    for (let i = 0; i < keys.length; i ++) {
+        let key = keys[i];
+        let asset = raw_assets_data[key];
+
+        if(zeroish(asset.amount)) continue;
 
         let row = legend.insertRow();
         row.className = 'nobottom';
 
         let colour_cell = row.insertCell();
-        colour_cell.style.backgroundColor = assets_data.datasets[0].backgroundColor[i];
+        colour_cell.style.backgroundColor = colours[key];
         colour_cell.className = 'colour';
 
-        row.insertCell().innerText = assets_data.labels[i];
-        row.insertCell().innerText = strAmount(assets_data.datasets[0].data[i]);
+        row.insertCell().innerText = key;
+        row.insertCell().innerText = strAmount(asset.amount);
     }
 
     return legend;
 }
 
 function renderAssets(raw_data, refresh=false) {
-    raw_assets_data = show_breakdown ? raw_data.breakdown : raw_data.assets;
+    let raw_assets_data = show_breakdown ? raw_data.breakdown : raw_data.assets;
 
     if (!refresh) {
         document.getElementById('assets_breakdown_container').removeChild(document.getElementById('assets_breakdown'));
         document.getElementById('assets_breakdown_container').appendChild(renderAssetsBreakdown(raw_data.breakdown));
     }
 
+    let keys = Object.keys(raw_assets_data);
+    let colours = {};
+    for (let i = 0; i < keys.length; i ++) {
+        colours[keys[i]] = `rgb(${randRange(0,255)}, ${randRange(0,255)}, ${randRange(0,255)})`;
+    }
+
     document.getElementById('assets_chart_container').removeChild(document.getElementById('assets_chart'));
-    document.getElementById('assets_chart_container').appendChild(renderAssetsChart(raw_assets_data));
+    document.getElementById('assets_chart_container').appendChild(renderAssetsChart(raw_assets_data, colours));
 
     document.getElementById('assets_legend_container').removeChild(document.getElementById('assets_legend'));
-    document.getElementById('assets_legend_container').appendChild(renderAssetsLegend(raw_assets_data));
+    document.getElementById('assets_legend_container').appendChild(renderAssetsLegend(raw_assets_data, colours));
 
     document.getElementById('assets_chart').onclick = function() {
         show_breakdown = !show_breakdown;
