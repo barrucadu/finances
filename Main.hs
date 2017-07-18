@@ -166,8 +166,9 @@ dataFor cfg today txns = object
       ]
     breakdown = object
       [ name .= object [ "amount" .= toDouble amount, "tag" .= accTag desc ]
-      | (acc, amount) <- M.assocs (getBalances uptonow)
-      , desc <- maybeToList (lookup acc (assetBreakdown cfg))
+      | let currentBals = getBalances uptonow
+      , (acc, desc) <- assetBreakdown cfg
+      , let amount = M.findWithDefault 0 acc currentBals
       , let name = fromMaybe acc (accLongName desc <|> account (assetRules cfg) acc)
       ]
 

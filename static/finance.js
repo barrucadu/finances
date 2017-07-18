@@ -48,9 +48,7 @@ function renderAssetsBreakdown(breakdown_data) {
     let data = {};
     for (let key in breakdown_data) {
         let asset = breakdown_data[key];
-        if (asset.amount > -0.01) {
-            data[asset.tag] = ((asset.tag in data) ? data[asset.tag] : 0) + asset.amount;
-        }
+        data[asset.tag] = ((asset.tag in data) ? data[asset.tag] : 0) + asset.amount;
     }
 
     let keys = Object.keys(data).sort();
@@ -133,6 +131,8 @@ function renderAssetsLegend(raw_assets_data) {
     legend.id = 'assets_legend';
 
     for (let i = 0; i < assets_data.datasets[0].data.length; i ++) {
+        if(zeroish(assets_data.datasets[0].data[i])) continue;
+
         let row = legend.insertRow();
         row.className = 'nobottom';
 
