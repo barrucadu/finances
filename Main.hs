@@ -1,16 +1,11 @@
-{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
+
 module Main where
 
-import           Control.Applicative           ((*>), (<|>))
 import           Control.Arrow                 (second)
 import           Control.Monad                 (join, mapM)
-import           Data.Aeson                    (Value, object, (.=))
 import qualified Data.Aeson                    as A
-import qualified Data.Aeson.Types              as A
 import           Data.Char                     (toUpper)
-import           Data.Foldable                 (toList)
-import qualified Data.HashMap.Lazy             as HM
 import           Data.List                     (inits, mapAccumL, nub)
 import qualified Data.Map                      as M
 import           Data.Maybe                    (fromMaybe, listToMaybe,
@@ -20,7 +15,6 @@ import           Data.Semigroup                ((<>))
 import qualified Data.Text                     as T
 import qualified Data.Time.Calendar            as C
 import qualified Data.Time.Clock               as C
-import qualified Data.Time.Format              as C
 import qualified Data.Yaml                     as Y
 import qualified Hledger.Data.Types            as H
 import qualified Hledger.Read                  as H
@@ -30,9 +24,11 @@ import qualified Network.Wai                   as W
 import qualified Network.Wai.Handler.Warp      as W
 import qualified Network.Wai.Middleware.Static as W
 import           System.Exit                   (exitFailure)
-import           System.FilePath               (FilePath, (</>))
+import           System.FilePath               ((</>))
 import           Text.Read                     (readMaybe)
 
+import           Config
+import           Report
 
 main :: IO ()
 main = do
@@ -43,104 +39,6 @@ main = do
       putStrLn "Couldn't parse configuration file:"
       putStrLn (Y.prettyPrintParseException err)
       exitFailure
-
-
--------------------------------------------------------------------------------
-
--- | The parsed configuration file.
-data Config = Config
-  { port :: Int
-  , staticdir :: FilePath
-  , assetAccounts :: [Account]
-  , incomeRules :: AccountRules
-  , budgetRules :: AccountRules
-  , expenseRules :: AccountRules
-  } deriving Show
-
-instance Y.FromJSON Config where
-  parseJSON (Y.Object o) = o Y..: "http" >>= \case
-    Y.Object httpcfg -> Config
-      <$> httpcfg Y..: "port"
-      <*> httpcfg Y..: "static_dir"
-      <*> (A.parseJSON =<< o Y..: "assets")
-      <*> (A.parseJSON =<< o Y..: "income")
-      <*> (A.parseJSON =<< o Y..: "budget")
-      <*> (A.parseJSON =<< o Y..: "expenses")
-    x -> A.typeMismatch "http" x
-  parseJSON x = A.typeMismatch "config" x
-
--- | Rules for an account.
-data Account = Account
-  { accName :: T.Text
-  , accBreakdown :: [Subaccount]
-  } deriving Show
-
-instance Y.FromJSON Account where
-  parseJSON (Y.Object o) = Account
-    <$> o Y..: "name"
-    <*> (Y.parseJSON =<< o Y..: "breakdown")
-  parseJSON x = A.typeMismatch "account" x
-
--- | Rules for a subaccount.
-data Subaccount = Subaccount
-  { subName :: Maybe T.Text
-  , subHledgerAccount :: T.Text
-  , subTag :: [(T.Text, Int)]
-  , subURL :: Maybe T.Text
-  } deriving Show
-
-instance Y.FromJSON Subaccount where
-  parseJSON (Y.Object o) = do
-    tag <- o Y..:? "tag" >>= \case
-      Just (Y.String tags) -> pure [(tags, 100)]
-      Just (Y.Object tago) -> HM.toList <$> mapM Y.parseJSON tago
-      Just x  -> A.typeMismatch "tag" x
-      Nothing -> pure [("Cash", 100)]
-    Subaccount
-      <$> o Y..:? "name"
-      <*> o Y..:  "account"
-      <*> pure tag
-      <*> o Y..:? "url"
-  parseJSON x = A.typeMismatch "subaccount" x
-
--- | Rules for an account name.
-data AccountRules
-  = Only [(T.Text, T.Text)]
-  -- ^ A fixed list of transformations.
-  | Try [AccountRules]
-  -- ^ Try the rules in order.
-  | Simple T.Text
-  -- ^ Use the simple rule (drop prefix + capitalise words)
-  | None
-  -- ^ Forbid everything.
-  deriving Show
-
-instance Y.FromJSON AccountRules where
-  parseJSON (Y.Array  v) = Try . toList <$> mapM A.parseJSON v
-  parseJSON (Y.Object o) = only <|> simple <|> none where
-    only = o Y..: "only" >>= \case
-      Y.Object o_ -> Only . HM.toList <$> mapM A.parseJSON o_
-      x -> A.typeMismatch "only" x
-    simple = o Y..: "simple" >>= \case
-      Y.String s_ -> pure (Simple s_)
-      x -> A.typeMismatch "simple" x
-    none = (o Y..: "none" :: A.Parser A.Value) *> pure None
-  parseJSON Y.Null = pure None
-  parseJSON x = A.typeMismatch "account rules" x
-
--- | Rules for an account description.
-data AccountDescription = AccountDescription
-  { accLongName :: Maybe T.Text
-  , accTag :: T.Text
-  , accURL :: Maybe T.Text
-  } deriving Show
-
-instance Y.FromJSON AccountDescription where
-  parseJSON (Y.Object o) = AccountDescription
-    <$> o Y..:? "name"
-    <*> o Y..:  "tag"
-    <*> o Y..:? "url"
-  parseJSON x = A.typeMismatch "account description" x
 
 
 -------------------------------------------------------------------------------
@@ -163,55 +61,53 @@ run cfg = W.runEnv (port cfg) $ serveStatic (\req respond -> respond =<< serveDy
       _ -> financeDataFor cfg today
 
 -- | Get the data from the default hledger journal for the given date.
-financeDataFor :: Config -> C.Day -> IO Value
+financeDataFor :: Config -> C.Day -> IO A.Value
 financeDataFor cfg today =
   dataFor cfg today . H.jtxns <$> H.defaultJournal
 
 -- | Get the data for a specific day.
-dataFor :: Config -> C.Day -> [H.Transaction] -> Value
-dataFor cfg today txns = object
-    [ "when"      .= T.pack (C.formatTime C.defaultTimeLocale "%B %_Y" today)
-    , "assets"    .= assets
-    , "income"    .= balanceFrom monthStart    (account (incomeRules  cfg)) negate
-    , "budget"    .= balanceFrom (const epoch) (account (budgetRules  cfg)) id
-    , "expenses"  .= balanceFrom monthStart    (account (expenseRules cfg)) id
-    , "history"   .= history
-    ]
+dataFor :: Config -> C.Day -> [H.Transaction] -> A.Value
+dataFor cfg today txns = A.toJSON Report
+    { rpWhen     = today
+    , rpAssets   = assets
+    , rpIncome   = balanceFrom monthStart    (account (incomeRules  cfg)) negate
+    , rpBudget   = balanceFrom (const epoch) (account (budgetRules  cfg)) id
+    , rpExpenses = balanceFrom monthStart    (account (expenseRules cfg)) id
+    , rpHistory  = history
+    }
   where
-    assets = map object
-      [ [ "name" .= name
-        , "breakdown" .= map object
-          [ [ "name"   .= subname
-            , "amount" .= toDouble amount
-            , "tags"   .= [ object [ "tag" .= tag, "share" .= share ]
-                          | (tag, share) <- subTag subacc
-                          ]
-            ] ++ maybe [] (\u -> [ "url" .= u ]) (subURL subacc)
-          | subacc <- accBreakdown acc
-          , let subname = fromMaybe (accName acc) (subName subacc)
-          , let amount  = M.findWithDefault 0 (subHledgerAccount subacc) currentBals
-          ]
-        ]
+    assets =
+      [ AccountReport
+        { arName      = accName acc
+        , arBreakdown =
+            [ SubaccountReport
+              { srName   = fromMaybe (accName acc) (subName subacc)
+              , srAmount = amount
+              , srTags   = subTag subacc
+              , srURL    = subURL subacc
+              }
+            | subacc <- accBreakdown acc
+            , let amount = M.findWithDefault 0 (subHledgerAccount subacc) currentBals
+            ]
+        }
       | acc <- assetAccounts cfg
-      , let name = accName acc
       , let currentBals = getBalances uptonow
       ]
-    balanceFrom whenf accf valf = object
-      [ account .= object [ "amount" .= toDouble (valf amount), "delta" .= toDouble delta, "prior" .= toDouble (valf old) ]
+
+    balanceFrom whenf accf valf =
+      [ (account, DeltaReport { drCurrent = valf amount, drPrior = valf old })
       | let currentBals = M.unionWith (-) (getBalances uptonow)   (balancesAt (whenf today)     uptonow)
       , let priorBals   = M.unionWith (-) (getBalances uptoprior) (balancesAt (whenf lastmonth) uptoprior)
       , (acc, amount) <- M.assocs currentBals
       , account <- maybeToList (accf acc)
       , let old = M.findWithDefault 0 acc priorBals
-      , let delta = valf amount - valf old
       ]
-    history = object
-      [ date .= [ object [ "title" .= txntitle, "delta" .= toDouble assetDelta ]
-                | (txntitle, txndeltas) <- reverse daytxns
-                , let assetDelta = M.findWithDefault 0 "assets" txndeltas
-                ]
+    history =
+      [ (day, [ TransactionReport { trTitle = txntitle, trDelta = assetDelta }
+              | (txntitle, txndeltas) <- reverse daytxns
+              , let assetDelta = M.findWithDefault 0 "assets" txndeltas
+              ])
       | (day, _, daytxns) <- takeWhile (\(d,_,_) -> monthYear d == monthYear today) uptonow
-      , let date = T.pack (C.formatTime C.defaultTimeLocale "%d/%m" day)
       ]
 
     balancesAt cutoff = getBalances . dropWhile (\(d,_,_) -> d > cutoff)
@@ -278,10 +174,6 @@ monthYear d = let (y, m, _) = C.toGregorian d in (m, y)
 -- | Get the end of the prior month.
 monthStart :: C.Day -> C.Day
 monthStart d = C.addDays (-1) (let (m, y) = monthYear d in C.fromGregorian y m 1)
-
--- | Turn a 'Rational' into a 'Double'.  This is lossy!
-toDouble :: Rational -> Double
-toDouble = fromRational
 
 -- | Give a nice name to an account.
 account :: AccountRules -> T.Text -> Maybe T.Text

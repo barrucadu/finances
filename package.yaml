@@ -1,6 +1,9 @@
 executables:
   webui:
     main: Main.hs
+    other-modules:
+      - Config
+      - Report
     dependencies:
       - base
       - aeson
@@ -15,3 +18,4 @@ executables:
       - wai-middleware-static
       - warp
       - yaml
+    ghc-options: -Wall
