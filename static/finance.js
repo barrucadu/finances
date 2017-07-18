@@ -197,6 +197,7 @@ function renderAssetsChart(raw_assets_data) {
             labels: keys
         },
         options: {
+            animation: { animateScale: true },
             tooltips: { callbacks: { label: hoverCallback(strAmount) } },
             elements: {
                 center: {
