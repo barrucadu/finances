@@ -1,5 +1,7 @@
 const THIS_MONTH = new Date().getMonth() + 1;
 
+var show_breakdown = false;
+
 function zeroish(val) {
     return val < 0.01 && val > -0.01;
 }
@@ -37,34 +39,73 @@ function showAmount(ele, amount, brackets=false, flipGoodBad=false, noEmphasisGo
     }
 }
 
-function renderAssets(raw_data, summary=true) {
-    raw_assets_data = summary ? raw_data.assets : raw_data.breakdown;
+function renderAssetsBreakdown(breakdown_data) {
+    let breakdown = document.createElement('canvas')
+    breakdown.id = 'assets_breakdown';
+    breakdown.width = 300;
+    breakdown.height = 300;
 
+    let data = {};
+    for (let key in breakdown_data) {
+        let asset = breakdown_data[key];
+        if (asset.amount > -0.01) {
+            data[asset.tag] = ((asset.tag in data) ? data[asset.tag] : 0) + asset.amount;
+        }
+    }
+
+    let keys = Object.keys(data).sort();
+    let total = Object.values(data).reduce((acc, d) => acc + d, 0);
+    let colours = keys.map(() => [randRange(0,255), randRange(0,255), randRange(0,255)]);
+
+    new Chart(breakdown.getContext('2d'), {
+        type: 'bar',
+        data: {
+            datasets: [{
+                data: keys.map(k => (data[k] > -0.01) ? 100 * data[k] / total : 0),
+                backgroundColor: colours.map(c => `rgba(${c[0]}, ${c[1]}, ${c[2]}, 0.2)`),
+                borderColor: colours.map(c => `rgb(${Math.max(0, c[0]-20)}, ${Math.max(0, c[1]-20)}, ${Math.max(0, c[2]-20)})`),
+                borderWidth: 1
+            }],
+            labels: keys
+        },
+        options: {
+            tooltips: {
+                callbacks: {
+                    label: function(tooltipItem, data) {
+                        var label = data.labels[tooltipItem.index];
+                        let percent = data.datasets[tooltipItem.datasetIndex].data[tooltipItem.index];
+                        return `${label}: ${Math.abs(percent).toFixed(0)}%`;
+                    }
+                }
+            },
+            scales: {
+                yAxes: [{ ticks: { min: 0, max: 100 } }]
+            }
+        }
+    });
+
+    return breakdown;
+}
+
+function renderAssetsChart(raw_assets_data) {
+    let keys = Object.keys(raw_assets_data).sort();
     assets_data = {
         datasets: [{
-            data: Object.values(raw_assets_data).map(a => (a.amount > -0.01) ? a.amount : 0),
-            backgroundColor: Object.values(raw_assets_data).map(() => `rgb(${randRange(0,255)}, ${randRange(0,255)}, ${randRange(0,255)})`)
+            data: keys.map(k => (raw_assets_data[k].amount > -0.01) ? raw_assets_data[k].amount : 0),
+            backgroundColor: keys.map(() => `rgb(${randRange(0,255)}, ${randRange(0,255)}, ${randRange(0,255)})`)
         }],
-        labels: Object.keys(raw_assets_data)
+        labels: keys
     };
-
-    document.getElementById('assets').removeChild(document.getElementById('assets_chart'));
 
     let canvas = document.createElement('canvas');
     canvas.id = 'assets_chart';
-    canvas.width = 500;
+    canvas.width = 300;
     canvas.height = 300;
-    canvas.onclick = () => renderAssets(raw_data, !summary);
-    document.getElementById('assets').appendChild(canvas);
 
-    let ctx = canvas.getContext('2d');
-    new Chart(ctx, {
+    new Chart(canvas.getContext('2d'), {
         type: 'doughnut',
         data: assets_data,
         options: {
-            responsive: false,
-            maintainAspectRatio: true,
-            legend: { display: false },
             tooltips: {
                 callbacks: {
                     label: function(tooltipItem, data) {
@@ -83,6 +124,47 @@ function renderAssets(raw_data, summary=true) {
             }
         }
     });
+
+    return canvas;
+}
+
+function renderAssetsLegend(raw_assets_data) {
+    let legend = document.createElement('table');
+    legend.id = 'assets_legend';
+
+    for (let i = 0; i < assets_data.datasets[0].data.length; i ++) {
+        let row = legend.insertRow();
+        row.className = 'nobottom';
+
+        let colour_cell = row.insertCell();
+        colour_cell.style.backgroundColor = assets_data.datasets[0].backgroundColor[i];
+        colour_cell.className = 'colour';
+
+        row.insertCell().innerText = assets_data.labels[i];
+        row.insertCell().innerText = strAmount(assets_data.datasets[0].data[i]);
+    }
+
+    return legend;
+}
+
+function renderAssets(raw_data, refresh=false) {
+    raw_assets_data = show_breakdown ? raw_data.breakdown : raw_data.assets;
+
+    if (!refresh) {
+        document.getElementById('assets_breakdown_container').removeChild(document.getElementById('assets_breakdown'));
+        document.getElementById('assets_breakdown_container').appendChild(renderAssetsBreakdown(raw_data.breakdown));
+    }
+
+    document.getElementById('assets_chart_container').removeChild(document.getElementById('assets_chart'));
+    document.getElementById('assets_chart_container').appendChild(renderAssetsChart(raw_assets_data));
+
+    document.getElementById('assets_legend_container').removeChild(document.getElementById('assets_legend'));
+    document.getElementById('assets_legend_container').appendChild(renderAssetsLegend(raw_assets_data));
+
+    document.getElementById('assets_chart').onclick = function() {
+        show_breakdown = !show_breakdown;
+        renderAssets(raw_data, true);
+    };
 }
 
 function renderTable(raw_data, ele, flipGoodBad) {
@@ -206,6 +288,10 @@ function renderFinances(month, data) {
 }
 
 window.onload = () => {
+    Chart.defaults.global.responsive = false;
+    Chart.defaults.global.maintainAspectRatio = true;
+    Chart.defaults.global.legend.display = false;
+
     Chart.pluginService.register({
         beforeDraw: function (chart) {
             if (chart.config.options.elements.center) {

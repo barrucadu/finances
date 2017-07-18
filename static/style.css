@@ -26,7 +26,7 @@ h1 span {
 
 canvas {
     height: 300px;
-    width: 500px;
+    width: 300px;
     margin: 0 auto;
 }
 
@@ -58,6 +58,10 @@ th {
 td {
     text-align: left;
     width: 99%;
+}
+
+td.colour {
+    width: 128px !important;
 }
 
 td.good, td.bad {
@@ -92,6 +96,15 @@ div {
 
 .container div + div {
     border-left: 1px solid #ddd;
+}
+
+.container .noborder {
+    border: none;
+}
+
+#assets_legend_container {
+    display: flex;
+    align-items: center;
 }
 
 #history {
