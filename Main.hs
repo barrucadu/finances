@@ -60,18 +60,21 @@ data Config = Config
   } deriving Show
 
 instance Y.FromJSON Config where
-  parseJSON (Y.Object o) = do
-    Y.Object httpcfg <- o Y..: "http"
-    Y.Object acccfg  <- o Y..: "accounts"
-    Y.Object asscfg  <- o Y..: "assets"
-    Config
-      <$> httpcfg Y..: "port"
-      <*> httpcfg Y..: "static_dir"
-      <*> (A.parseJSON =<< acccfg Y..: "assets")
-      <*> (A.parseJSON =<< acccfg Y..: "income")
-      <*> (A.parseJSON =<< acccfg Y..: "budget")
-      <*> (A.parseJSON =<< acccfg Y..: "expenses")
-      <*> (HM.toList <$> mapM A.parseJSON asscfg)
+  parseJSON (Y.Object o) = o Y..: "http" >>= \case
+    Y.Object httpcfg -> o Y..: "assets" >>= \case
+      Y.Object assetcfg -> do
+        aSummary   <- assetcfg Y..: "summary"
+        aBreakdown <- assetcfg Y..: "breakdown"
+        Config
+          <$> httpcfg Y..: "port"
+          <*> httpcfg Y..: "static_dir"
+          <*> A.parseJSON aSummary
+          <*> (A.parseJSON =<< o Y..: "income")
+          <*> (A.parseJSON =<< o Y..: "budget")
+          <*> (A.parseJSON =<< o Y..: "expenses")
+          <*> (HM.toList <$> mapM A.parseJSON aBreakdown)
+      x -> A.typeMismatch "assets" x
+    x -> A.typeMismatch "http" x
   parseJSON x = A.typeMismatch "config" x
 
 -- | Rules for an account name.
