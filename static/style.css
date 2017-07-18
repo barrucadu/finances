@@ -36,6 +36,10 @@ table {
     border-collapse: collapse;
 }
 
+.subaccount td {
+    font-size: 0.9rem !important;
+}
+
 th, td {
     padding: 0.5em;
     border-bottom: 1px solid #ddd;
@@ -69,7 +73,17 @@ td {
 }
 
 td.colour {
-    width: 128px !important;
+    width: 1px !important;
+    padding: 0;
+}
+
+td.colour + td.colour {
+    border-left: 1px solid #ddd;
+}
+
+td.colour span {
+    display: block;
+    width: 10px;
 }
 
 td.good, td.bad {

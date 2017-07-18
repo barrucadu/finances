@@ -7,56 +7,58 @@ http:
   # Path (relative or absolute) to static assets:
   static_dir: ./static
 
+# <[account]>
 # The assets charts:
 assets:
-  # <account rules>
-  # The summary chart (the default one):
-  summary:
-    # Account rules are one of:
-    #  - a list of account rules (tried in order and the first match used).
-    #  - a key "only" with an object whose keys are accounts and values names.
-    #  - a key "simple" with a prefix to match and remove.
-    #  - a null, which matches nothing.
-    only:
-      "assets:cavendish":        Cavendish Online
-      "assets:nationwide":       Nationwide
-      "assets:santander:esaver": Santander (eSaver)
-      "assets:santander:main":   Santander (main)
-
-  # <string -> account description>
-  # The breakdown chart (the non-default one):
-  breakdown:
-    # Account description is an object with three keys:
-    #  - (optional) "name", a name to show; if omitted the name from
-    #    the summary (if present) will be used, and the raw name if
-    #    not.
-    #  - (required) "tag", the type of account; can be anything, but
-    #    think 'Cash', 'Fund', 'Bonds', etc.
-    #  - (optional) "url", a link to further information.
-    "assets:cavendish:MHMIA":
+  - name: Cavendish Online
+    # <[subaccount]>
+    breakdown:
+    - name: Marlborough UK Micro-Cap
       # <string>
-      name: Marlborough UK Micro-Cap
+      # The hledger account (optional)
+      account: assets:cavendish:MHMIA
+      # <string> OR <string -> int>
+      # The type of asset stored in this account.  Think "Cash",
+      # "Equities", "Bonds", "Property", ... (optional, defaults to
+      # "Cash")
+      tag: Equities
       # <string>
-      tag: Funds
-      # <string>
+      # Link to more information (optional)
       url: https://markets.ft.com/data/funds/tearsheet/summary?s=gb00b8f8yx59:gbx
-    "assets:cavendish:NPMKA":
-      name: Neptune Emerging Markets
-      tag: Funds
+
+    - name: Neptune Emerging Markets
+      account: assets:cavendish:NPMKA
+      tag: Equities
       url: https://markets.ft.com/data/funds/tearsheet/summary?s=gb00b8j6sv12:gbp
-    "assets:cavendish:VALEA":
-      name: Vanguard LifeStrategy 20%
-      tag: Funds
+
+    - name: Vanguard LifeStrategy 20%
+      account: assets:cavendish:VALEA
+      # If the tag is an object, the value in the account is split
+      # accordingly.
+      tag:
+        Equities: 20
+        Bonds:    80
       url: https://markets.ft.com/data/funds/tearsheet/summary?s=gb00b4nxy349:gbp
-    "assets:nationwide":
-      tag: Cash
-    "assets:santander":
-      name: Santander
-      tag: Cash
+
+  - name: Nationwide
+    breakdown:
+      - account: assets:nationwide
+
+  - name: Santander
+    breakdown:
+      - name: Main
+        account: assets:santander:main
+      - name: eSaver
+        account: assets:santander:esaver
 
 # <account rules>
 # The income accounts:
 income:
+  # Account rules are one of:
+  #  - a list of account rules (tried in order and the first match used).
+  #  - a key "only" with an object whose keys are accounts and values names.
+  #  - a key "simple" with a prefix to match and remove.
+  #  - a null, which matches nothing.
   - only:
       "income:pta": PTA
   - simple: income

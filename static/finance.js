@@ -2,6 +2,14 @@ const THIS_MONTH = new Date().getMonth() + 1;
 
 var show_breakdown = false;
 
+function hoverCallback(f) {
+    return function (tooltipItem, data) {
+        var label = data.labels[tooltipItem.index];
+        let value = data.datasets[tooltipItem.datasetIndex].data[tooltipItem.index];
+        return `${label}: ${f(value)}`;
+    }
+}
+
 function colour(str, alpha=1) {
     let total = 0;
     for (let i = 0; i < str.length; i ++) {
@@ -13,6 +21,10 @@ function colour(str, alpha=1) {
 
 function zeroish(val) {
     return val < 0.01 && val > -0.01;
+}
+
+function zeroise(val) {
+    return (val > -0.01) ? val : 0
 }
 
 function randRange(min, max) {
@@ -48,26 +60,33 @@ function showAmount(ele, amount, brackets=false, flipGoodBad=false, noEmphasisGo
     }
 }
 
-function renderAssetsBreakdown(breakdown_data) {
-    let breakdown = document.createElement('canvas')
-    breakdown.id = 'assets_breakdown';
-    breakdown.width = 300;
-    breakdown.height = 300;
+function renderAssetsTags(raw_assets_data) {
+    let canvas = document.createElement('canvas')
+    canvas.id = 'assets_tags';
+    canvas.width = 300;
+    canvas.height = 300;
 
     let data = {};
-    for (let key in breakdown_data) {
-        let asset = breakdown_data[key];
-        data[asset.tag] = ((asset.tag in data) ? data[asset.tag] : 0) + asset.amount;
+    for (let key in raw_assets_data) {
+        let asset = raw_assets_data[key];
+        for (let i = 0; i < asset.breakdown.length; i ++) {
+            let account = asset.breakdown[i];
+            let total = account.tags.reduce((acc, t) => acc + t.share, 0);
+            for (let j = 0; j < account.tags.length; j ++) {
+                let tag = account.tags[j];
+                data[tag.tag] = ((tag.tag in data) ? data[tag.tag] : 0) + account.amount * (tag.share / total);
+            }
+        }
     }
 
     let keys = Object.keys(data).sort();
     let total = Object.values(data).reduce((acc, d) => acc + d, 0);
 
-    new Chart(breakdown.getContext('2d'), {
+    new Chart(canvas.getContext('2d'), {
         type: 'bar',
         data: {
             datasets: [{
-                data: keys.map(k => (data[k] > -0.01) ? 100 * data[k] / total : 0),
+                data: keys.map(k => 100 * zeroise(data[k]) / total),
                 backgroundColor: keys.map(k => colour(k, 0.2)),
                 borderColor: keys.map(k => colour(k)),
                 borderWidth: 1
@@ -75,55 +94,60 @@ function renderAssetsBreakdown(breakdown_data) {
             labels: keys
         },
         options: {
-            tooltips: {
-                callbacks: {
-                    label: function(tooltipItem, data) {
-                        var label = data.labels[tooltipItem.index];
-                        let percent = data.datasets[tooltipItem.datasetIndex].data[tooltipItem.index];
-                        return `${label}: ${Math.abs(percent).toFixed(0)}%`;
-                    }
-                }
-            },
-            scales: {
-                yAxes: [{ ticks: { min: 0, max: 100 } }]
-            }
+            tooltips: { callbacks: { label: hoverCallback(x => `${Math.abs(x).toFixed(0)}%`) } },
+            scales: { yAxes: [{ ticks: { min: 0, max: 100 } }] }
         }
     });
 
-    return breakdown;
+    return canvas;
 }
 
-function renderAssetsChart(raw_assets_data, colours) {
-    let keys = Object.keys(raw_assets_data).sort();
-    let assets_data = {
-        datasets: [{
-            data: keys.map(k => (raw_assets_data[k].amount > -0.01) ? raw_assets_data[k].amount : 0),
-            backgroundColor: keys.map(k => colours[k]),
-        }],
-        labels: keys
-    };
-
+function renderAssetsChart(raw_assets_data) {
     let canvas = document.createElement('canvas');
     canvas.id = 'assets_chart';
     canvas.width = 300;
     canvas.height = 300;
 
+    let data = {};
+    for (let key in raw_assets_data) {
+        let asset = raw_assets_data[key];
+        if (show_breakdown && asset.breakdown.length > 1) {
+            for (let i = 0; i < asset.breakdown.length; i ++) {
+                let account = asset.breakdown[i];
+                data[account.name] = {
+                    bgcolour: colour(`${asset.name}${account.name}`, 0.2),
+                    bordercolour: colour(`${asset.name}${account.name}`),
+                    amount: account.amount
+                };
+            }
+        } else {
+            data[asset.name] = {
+                bgcolour: colour(asset.name, 0.2),
+                bordercolour: colour(asset.name),
+                amount: asset.breakdown.reduce((acc, d) => acc + d.amount, 0)
+            };
+        }
+    }
+
+    let keys = Object.keys(data);
+    let total = Object.values(data).reduce((acc, d) => acc + d.amount, 0);
+
     new Chart(canvas.getContext('2d'), {
         type: 'doughnut',
-        data: assets_data,
+        data: {
+            datasets: [{
+                data: keys.map(k => zeroise(data[k].amount)),
+                backgroundColor: keys.map(k => data[k].bgcolour),
+                borderColor: keys.map(k => data[k].bordercolour),
+                borderWidth: 1
+            }],
+            labels: keys
+        },
         options: {
-            tooltips: {
-                callbacks: {
-                    label: function(tooltipItem, data) {
-                        var label = data.labels[tooltipItem.index];
-                        let amount = data.datasets[tooltipItem.datasetIndex].data[tooltipItem.index];
-                        return `${label}: ${strAmount(amount)}`;
-                    }
-                }
-            },
+            tooltips: { callbacks: { label: hoverCallback(strAmount) } },
             elements: {
                 center: {
-                    text: `${strAmount(Object.values(raw_assets_data).reduce((acc, d) => acc + d.amount, 0))}`,
+                    text: `${strAmount(total)}`,
                     color: '#36A2EB',
                     fontStyle: 'CallunaSansRegular',
                 }
@@ -134,66 +158,102 @@ function renderAssetsChart(raw_assets_data, colours) {
     return canvas;
 }
 
-function renderAssetsLegend(raw_assets_data, colours) {
+function renderAssetsLegend(raw_assets_data) {
     let legend = document.createElement('table');
     legend.id = 'assets_legend';
 
-    let keys = Object.keys(raw_assets_data).sort();
-    for (let i = 0; i < keys.length; i ++) {
-        let key = keys[i];
-        let asset = raw_assets_data[key];
+    function add_row_cells(row, colour, name, url, strvalue, subcolour=null) {
+        let acc_colour_cell = row.insertCell();
+        acc_colour_cell.style.backgroundColor = colour;
+        acc_colour_cell.className = 'colour';
+        acc_colour_cell.appendChild(document.createElement('span'));
 
-        if(zeroish(asset.amount)) continue;
+        if (subcolour !== null) {
+            let subacc_colour_cell = row.insertCell();
+            subacc_colour_cell.style.backgroundColor = subcolour;
+            subacc_colour_cell.className = 'colour';
+            subacc_colour_cell.appendChild(document.createElement('span'));
+        }
 
-        let row = legend.insertRow();
-        row.className = 'nobottom';
+        let acc_name_cell = row.insertCell();
+        acc_name_cell.innerText = name;
 
-        let colour_cell = row.insertCell();
-        colour_cell.style.backgroundColor = colours[key];
-        colour_cell.className = 'colour';
+        if (subcolour == null) {
+            acc_name_cell.colSpan = '2';
+        }
 
-        let name_cell = row.insertCell();
-        name_cell.innerText = key;
-
-        if (asset.url !== undefined) {
+        if (url !== undefined) {
             let link = document.createElement('a');
-            link.href = asset.url;
+            link.href = url;
             link.innerText = '(?)';
             link.className = 'note';
             link.title = 'More information...';
-            name_cell.appendChild(link);
+            acc_name_cell.appendChild(link);
         }
 
-        row.insertCell().innerText = strAmount(asset.amount);
+        let value_cell = row.insertCell();
+        value_cell.innerText = strvalue;
+        value_cell.className = 'num';
     }
+
+    let row;
+    for (let key in raw_assets_data) {
+        let asset = raw_assets_data[key];
+        let total = asset.breakdown.reduce((acc, d) => acc + d.amount, 0)
+
+        if(zeroish(total)) continue;
+
+        row = legend.insertRow();
+        add_row_cells(row,
+                      colour(asset.name),
+                      asset.name,
+                      asset.url,
+                      strAmount(total));
+
+        if (asset.breakdown.length == 1) {
+            continue;
+        }
+        row.classList.add('lightbottom');
+
+        for (let i = 0; i < asset.breakdown.length; i ++) {
+            let account = asset.breakdown[i];
+
+            row = legend.insertRow();
+            row.classList.add('subaccount');
+            row.classList.add('lightbottom');
+            add_row_cells(row,
+                          colour(asset.name),
+                          account.name,
+                          account.url,
+                          `${Math.abs(100 * account.amount / total).toFixed(0)}%`,
+                          colour(`${asset.name}${account.name}`));
+        }
+        row.classList.remove('lightbottom');
+    }
+
+    row.classList.add('nobottom');
 
     return legend;
 }
 
-function renderAssets(raw_data, refresh=false) {
-    let raw_assets_data = show_breakdown ? raw_data.breakdown : raw_data.assets;
+function renderAssets(raw_assets_data) {
+    function piechart() {
+        document.getElementById('assets_chart_container').removeChild(document.getElementById('assets_chart'));
+        document.getElementById('assets_chart_container').appendChild(renderAssetsChart(raw_assets_data));
 
-    if (!refresh) {
-        document.getElementById('assets_breakdown_container').removeChild(document.getElementById('assets_breakdown'));
-        document.getElementById('assets_breakdown_container').appendChild(renderAssetsBreakdown(raw_data.breakdown));
+        document.getElementById('assets_chart').onclick = function() {
+            show_breakdown = !show_breakdown;
+            piechart();
+        };
     }
 
-    let keys = Object.keys(raw_assets_data);
-    let colours = {};
-    for (let i = 0; i < keys.length; i ++) {
-        colours[keys[i]] = colour(keys[i]);
-    }
+    document.getElementById('assets_tags_container').removeChild(document.getElementById('assets_tags'));
+    document.getElementById('assets_tags_container').appendChild(renderAssetsTags(raw_assets_data));
 
-    document.getElementById('assets_chart_container').removeChild(document.getElementById('assets_chart'));
-    document.getElementById('assets_chart_container').appendChild(renderAssetsChart(raw_assets_data, colours));
+    piechart();
 
     document.getElementById('assets_legend_container').removeChild(document.getElementById('assets_legend'));
-    document.getElementById('assets_legend_container').appendChild(renderAssetsLegend(raw_assets_data, colours));
-
-    document.getElementById('assets_chart').onclick = function() {
-        show_breakdown = !show_breakdown;
-        renderAssets(raw_data, true);
-    };
+    document.getElementById('assets_legend_container').appendChild(renderAssetsLegend(raw_assets_data));
 }
 
 function renderTable(raw_data, ele, flipGoodBad) {
@@ -309,7 +369,7 @@ function renderFinances(month, data) {
         }
     }
 
-    renderAssets(data);
+    renderAssets(data.assets);
     renderIncome(data.income);
     renderBudget(data.budget);
     renderExpenses(data.expenses);

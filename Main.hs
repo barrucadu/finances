@@ -13,9 +13,8 @@ import           Data.Foldable                 (toList)
 import qualified Data.HashMap.Lazy             as HM
 import           Data.List                     (inits, mapAccumL, nub)
 import qualified Data.Map                      as M
-import           Data.Maybe                    (catMaybes, fromMaybe,
-                                                listToMaybe, mapMaybe,
-                                                maybeToList)
+import           Data.Maybe                    (fromMaybe, listToMaybe,
+                                                mapMaybe, maybeToList)
 import           Data.Ratio                    (Rational)
 import           Data.Semigroup                ((<>))
 import qualified Data.Text                     as T
@@ -23,8 +22,8 @@ import qualified Data.Time.Calendar            as C
 import qualified Data.Time.Clock               as C
 import qualified Data.Time.Format              as C
 import qualified Data.Yaml                     as Y
-import           Hledger.Data.Types            as H
-import           Hledger.Read                  as H
+import qualified Hledger.Data.Types            as H
+import qualified Hledger.Read                  as H
 import qualified Network.HTTP.Types.Status     as W
 import qualified Network.HTTP.Types.URI        as W
 import qualified Network.Wai                   as W
@@ -52,30 +51,57 @@ main = do
 data Config = Config
   { port :: Int
   , staticdir :: FilePath
-  , assetRules :: AccountRules
+  , assetAccounts :: [Account]
   , incomeRules :: AccountRules
   , budgetRules :: AccountRules
   , expenseRules :: AccountRules
-  , assetBreakdown :: [(T.Text, AccountDescription)]
   } deriving Show
 
 instance Y.FromJSON Config where
   parseJSON (Y.Object o) = o Y..: "http" >>= \case
-    Y.Object httpcfg -> o Y..: "assets" >>= \case
-      Y.Object assetcfg -> do
-        aSummary   <- assetcfg Y..: "summary"
-        aBreakdown <- assetcfg Y..: "breakdown"
-        Config
-          <$> httpcfg Y..: "port"
-          <*> httpcfg Y..: "static_dir"
-          <*> A.parseJSON aSummary
-          <*> (A.parseJSON =<< o Y..: "income")
-          <*> (A.parseJSON =<< o Y..: "budget")
-          <*> (A.parseJSON =<< o Y..: "expenses")
-          <*> (HM.toList <$> mapM A.parseJSON aBreakdown)
-      x -> A.typeMismatch "assets" x
+    Y.Object httpcfg -> Config
+      <$> httpcfg Y..: "port"
+      <*> httpcfg Y..: "static_dir"
+      <*> (A.parseJSON =<< o Y..: "assets")
+      <*> (A.parseJSON =<< o Y..: "income")
+      <*> (A.parseJSON =<< o Y..: "budget")
+      <*> (A.parseJSON =<< o Y..: "expenses")
     x -> A.typeMismatch "http" x
   parseJSON x = A.typeMismatch "config" x
+
+-- | Rules for an account.
+data Account = Account
+  { accName :: T.Text
+  , accBreakdown :: [Subaccount]
+  } deriving Show
+
+instance Y.FromJSON Account where
+  parseJSON (Y.Object o) = Account
+    <$> o Y..: "name"
+    <*> (Y.parseJSON =<< o Y..: "breakdown")
+  parseJSON x = A.typeMismatch "account" x
+
+-- | Rules for a subaccount.
+data Subaccount = Subaccount
+  { subName :: Maybe T.Text
+  , subHledgerAccount :: T.Text
+  , subTag :: [(T.Text, Int)]
+  , subURL :: Maybe T.Text
+  } deriving Show
+
+instance Y.FromJSON Subaccount where
+  parseJSON (Y.Object o) = do
+    tag <- o Y..:? "tag" >>= \case
+      Just (Y.String tags) -> pure [(tags, 100)]
+      Just (Y.Object tago) -> HM.toList <$> mapM Y.parseJSON tago
+      Just x  -> A.typeMismatch "tag" x
+      Nothing -> pure [("Cash", 100)]
+    Subaccount
+      <$> o Y..:? "name"
+      <*> o Y..:  "account"
+      <*> pure tag
+      <*> o Y..:? "url"
+  parseJSON x = A.typeMismatch "subaccount" x
 
 -- | Rules for an account name.
 data AccountRules
@@ -145,14 +171,31 @@ financeDataFor cfg today =
 dataFor :: Config -> C.Day -> [H.Transaction] -> Value
 dataFor cfg today txns = object
     [ "when"      .= T.pack (C.formatTime C.defaultTimeLocale "%B %_Y" today)
-    , "assets"    .= balanceFrom (const epoch) (account (assetRules   cfg)) id
+    , "assets"    .= assets
     , "income"    .= balanceFrom monthStart    (account (incomeRules  cfg)) negate
     , "budget"    .= balanceFrom (const epoch) (account (budgetRules  cfg)) id
     , "expenses"  .= balanceFrom monthStart    (account (expenseRules cfg)) id
     , "history"   .= history
-    , "breakdown" .= breakdown
     ]
   where
+    assets = map object
+      [ [ "name" .= name
+        , "breakdown" .= map object
+          [ [ "name"   .= subname
+            , "amount" .= toDouble amount
+            , "tags"   .= [ object [ "tag" .= tag, "share" .= share ]
+                          | (tag, share) <- subTag subacc
+                          ]
+            ] ++ maybe [] (\u -> [ "url" .= u ]) (subURL subacc)
+          | subacc <- accBreakdown acc
+          , let subname = fromMaybe (accName acc) (subName subacc)
+          , let amount  = M.findWithDefault 0 (subHledgerAccount subacc) currentBals
+          ]
+        ]
+      | acc <- assetAccounts cfg
+      , let name = accName acc
+      , let currentBals = getBalances uptonow
+      ]
     balanceFrom whenf accf valf = object
       [ account .= object [ "amount" .= toDouble (valf amount), "delta" .= toDouble delta, "prior" .= toDouble (valf old) ]
       | let currentBals = M.unionWith (-) (getBalances uptonow)   (balancesAt (whenf today)     uptonow)
@@ -169,15 +212,6 @@ dataFor cfg today txns = object
                 ]
       | (day, _, daytxns) <- takeWhile (\(d,_,_) -> monthYear d == monthYear today) uptonow
       , let date = T.pack (C.formatTime C.defaultTimeLocale "%d/%m" day)
-      ]
-    breakdown = object
-      [ name .= object (catMaybes [ Just $ "amount" .= toDouble amount
-                                  , Just $ "tag"    .= accTag desc
-                                  , ("url" .=) <$> accURL desc ])
-      | let currentBals = getBalances uptonow
-      , (acc, desc) <- assetBreakdown cfg
-      , let amount = M.findWithDefault 0 acc currentBals
-      , let name = fromMaybe acc (accLongName desc <|> account (assetRules cfg) acc)
       ]
 
     balancesAt cutoff = getBalances . dropWhile (\(d,_,_) -> d > cutoff)
