@@ -18,3 +18,19 @@ accounts:
     simple: assets:santander:main:budget
   expenses:
     simple: expenses
+
+assets:
+  "assets:cavendish:MHMIA":
+    name: Marlborough UK Micro-Cap
+    tag: Funds
+  "assets:cavendish:NPMKA":
+    name: Neptune Emerging Markets
+    tag: Funds
+  "assets:cavendish:VALEA":
+    name: Vanguard LifeStrategy 20%
+    tag: Funds
+  "assets:nationwide":
+    tag: Cash
+  "assets:santander":
+    name: Santander
+    tag: Cash

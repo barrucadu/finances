@@ -37,14 +37,16 @@ function showAmount(ele, amount, brackets=false, flipGoodBad=false, noEmphasisGo
     }
 }
 
-function renderAssets(raw_assets_data) {
-    let assets_data = {
+function renderAssets(raw_data, summary=true) {
+    raw_assets_data = summary ? raw_data.assets : raw_data.breakdown;
+
+    assets_data = {
         datasets: [{
             data: Object.values(raw_assets_data).map(a => (a.amount > -0.01) ? a.amount : 0),
             backgroundColor: Object.values(raw_assets_data).map(() => `rgb(${randRange(0,255)}, ${randRange(0,255)}, ${randRange(0,255)})`)
         }],
         labels: Object.keys(raw_assets_data)
-    }
+    };
 
     document.getElementById('assets').removeChild(document.getElementById('assets_chart'));
 
@@ -52,6 +54,7 @@ function renderAssets(raw_assets_data) {
     canvas.id = 'assets_chart';
     canvas.width = 300;
     canvas.height = 300;
+    canvas.onclick = () => renderAssets(raw_data, !summary);
     document.getElementById('assets').appendChild(canvas);
 
     let ctx = canvas.getContext('2d');
@@ -194,7 +197,7 @@ function renderFinances(month, data) {
         }
     }
 
-    renderAssets(data.assets);
+    renderAssets(data);
     renderIncome(data.income);
     renderBudget(data.budget);
     renderExpenses(data.expenses);

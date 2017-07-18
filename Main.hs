@@ -55,12 +55,14 @@ data Config = Config
   , incomeRules :: AccountRules
   , budgetRules :: AccountRules
   , expenseRules :: AccountRules
+  , assetBreakdown :: [(T.Text, AccountDescription)]
   } deriving Show
 
 instance Y.FromJSON Config where
   parseJSON (Y.Object o) = do
     Y.Object httpcfg <- o Y..: "http"
     Y.Object acccfg  <- o Y..: "accounts"
+    Y.Object asscfg  <- o Y..: "assets"
     Config
       <$> httpcfg Y..: "port"
       <*> httpcfg Y..: "static_dir"
@@ -68,9 +70,10 @@ instance Y.FromJSON Config where
       <*> (A.parseJSON =<< acccfg Y..: "income")
       <*> (A.parseJSON =<< acccfg Y..: "budget")
       <*> (A.parseJSON =<< acccfg Y..: "expenses")
+      <*> (HM.toList <$> mapM A.parseJSON asscfg)
   parseJSON x = A.typeMismatch "config" x
 
--- | Rules for an account name
+-- | Rules for an account name.
 data AccountRules
   = Only [(T.Text, T.Text)]
   -- ^ A fixed list of transformations.
@@ -95,6 +98,17 @@ instance Y.FromJSON AccountRules where
       x -> A.typeMismatch "simple" x
     none = (o Y..: "none" :: A.Parser A.Value) *> pure None
   parseJSON x = A.typeMismatch "account rules" x
+
+-- | Rules for an account description.
+data AccountDescription
+  = AccountDescription { accLongName :: Maybe T.Text, accTag :: T.Text }
+  deriving Show
+
+instance Y.FromJSON AccountDescription where
+  parseJSON (Y.Object o) = AccountDescription
+    <$> o Y..:? "name"
+    <*> o Y..:  "tag"
+  parseJSON x = A.typeMismatch "account description" x
 
 
 -------------------------------------------------------------------------------
@@ -124,12 +138,13 @@ financeDataFor cfg today =
 -- | Get the data for a specific day.
 dataFor :: Config -> C.Day -> [H.Transaction] -> Value
 dataFor cfg today txns = object
-    [ "when"     .= T.pack (C.formatTime C.defaultTimeLocale "%B %_Y" today)
-    , "assets"   .= balanceFrom (const epoch) (account (assetRules   cfg)) id
-    , "income"   .= balanceFrom monthStart    (account (incomeRules  cfg)) negate
-    , "budget"   .= balanceFrom (const epoch) (account (budgetRules  cfg)) id
-    , "expenses" .= balanceFrom monthStart    (account (expenseRules cfg)) id
-    , "history"  .= history
+    [ "when"      .= T.pack (C.formatTime C.defaultTimeLocale "%B %_Y" today)
+    , "assets"    .= balanceFrom (const epoch) (account (assetRules   cfg)) id
+    , "income"    .= balanceFrom monthStart    (account (incomeRules  cfg)) negate
+    , "budget"    .= balanceFrom (const epoch) (account (budgetRules  cfg)) id
+    , "expenses"  .= balanceFrom monthStart    (account (expenseRules cfg)) id
+    , "history"   .= history
+    , "breakdown" .= breakdown
     ]
   where
     balanceFrom whenf accf valf = object
@@ -148,6 +163,12 @@ dataFor cfg today txns = object
                 ]
       | (day, _, daytxns) <- takeWhile (\(d,_,_) -> monthYear d == monthYear today) uptonow
       , let date = T.pack (C.formatTime C.defaultTimeLocale "%d/%m" day)
+      ]
+    breakdown = object
+      [ name .= object [ "amount" .= toDouble amount, "tag" .= accTag desc ]
+      | (acc, amount) <- M.assocs (getBalances uptonow)
+      , desc <- maybeToList (lookup acc (assetBreakdown cfg))
+      , let name = fromMaybe acc (accLongName desc <|> account (assetRules cfg) acc)
       ]
 
     balancesAt cutoff = getBalances . dropWhile (\(d,_,_) -> d > cutoff)
