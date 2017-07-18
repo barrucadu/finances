@@ -52,7 +52,7 @@ function renderAssets(raw_data, summary=true) {
 
     let canvas = document.createElement('canvas');
     canvas.id = 'assets_chart';
-    canvas.width = 300;
+    canvas.width = 500;
     canvas.height = 300;
     canvas.onclick = () => renderAssets(raw_data, !summary);
     document.getElementById('assets').appendChild(canvas);
@@ -64,6 +64,7 @@ function renderAssets(raw_data, summary=true) {
         options: {
             responsive: false,
             maintainAspectRatio: true,
+            legend: { display: false },
             tooltips: {
                 callbacks: {
                     label: function(tooltipItem, data) {
