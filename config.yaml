@@ -1,18 +1,44 @@
+# The web server:
 http:
+  # <int>
+  # Port to listen on:
   port: 5000
+  # <string>
+  # Path (relative or absolute) to static assets:
   static_dir: ./static
 
+# The assets charts:
 assets:
+  # <account rules>
+  # The summary chart (the default one):
   summary:
+    # Account rules are one of:
+    #  - a list of account rules (tried in order and the first match used).
+    #  - a key "only" with an object whose keys are accounts and values names.
+    #  - a key "simple" with a prefix to match and remove.
+    #  - a null, which matches nothing.
     only:
       "assets:cavendish":        Cavendish Online
       "assets:nationwide":       Nationwide
       "assets:santander:esaver": Santander (eSaver)
       "assets:santander:main":   Santander (main)
+
+  # <string -> account description>
+  # The breakdown chart (the non-default one):
   breakdown:
+    # Account description is an object with three keys:
+    #  - (optional) "name", a name to show; if omitted the name from
+    #    the summary (if present) will be used, and the raw name if
+    #    not.
+    #  - (required) "tag", the type of account; can be anything, but
+    #    think 'Cash', 'Fund', 'Bonds', etc.
+    #  - (optional) "url", a link to further information.
     "assets:cavendish:MHMIA":
+      # <string>
       name: Marlborough UK Micro-Cap
+      # <string>
       tag: Funds
+      # <string>
       url: https://markets.ft.com/data/funds/tearsheet/summary?s=gb00b8f8yx59:gbx
     "assets:cavendish:NPMKA":
       name: Neptune Emerging Markets
@@ -28,13 +54,19 @@ assets:
       name: Santander
       tag: Cash
 
+# <account rules>
+# The income accounts:
 income:
   - only:
       "income:pta": PTA
   - simple: income
 
+# <account rules>
+# The budget accounts:
 budget:
   simple: assets:santander:main:budget
 
+# <account rules>
+# The expense accounts:
 expenses:
   simple: expenses
