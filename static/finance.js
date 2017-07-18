@@ -22,7 +22,7 @@ function randRange(min, max) {
 }
 
 function strAmount(amount, showPlus=false) {
-    let sign = (amount > 0) ? (showPlus ? '+' : '') : '-';
+    let sign = (amount > -0.01) ? (showPlus ? '+' : '') : '-';
     let amt = Math.abs(amount).toFixed(2);
     return `${sign}£${amt}`;
 }
