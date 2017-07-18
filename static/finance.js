@@ -1,6 +1,8 @@
 const THIS_MONTH = new Date().getMonth() + 1;
 
+var cached_assets_data = undefined;
 var show_breakdown = false;
+var hidden_accounts = {};
 
 function hoverCallback(f) {
     return function (tooltipItem, data) {
@@ -8,6 +10,50 @@ function hoverCallback(f) {
         let value = data.datasets[tooltipItem.datasetIndex].data[tooltipItem.index];
         return `${label}: ${f(value)}`;
     }
+}
+
+function isHidden(asset, account=null) {
+    let k = (account === null) ? asset.name : `${asset.name}${account.name}`;
+    return asset.name in hidden_accounts || k in hidden_accounts;
+}
+
+function toggleHide(asset, account=null) {
+    function toggle(k) {
+        if (k in hidden_accounts) {
+            delete hidden_accounts[k];
+        } else {
+            hidden_accounts[k] = true;
+        }
+    }
+
+    if (account == null) {
+        // unhide all the breakdowns
+        for (let i = 0; i < asset.breakdown.length; i ++) {
+            let k = `${asset.name}${asset.breakdown[i].name}`;
+            if (k in hidden_accounts) {
+                delete hidden_accounts[k];
+            }
+        }
+
+        // then toggle the state of the asset
+        toggle(asset.name)
+    } else {
+        // if the asset is hidden, unhide it, then hide all the
+        // breakdowns except this one; otherwise just toggle the state
+        // of this one.
+        if (isHidden(asset)) {
+            toggle(asset.name);
+
+            for (let i = 0; i < asset.breakdown.length; i ++) {
+                if (asset.breakdown[i] == account) continue;
+                toggle(`${asset.name}${asset.breakdown[i].name}`);
+            }
+        } else {
+            toggle(`${asset.name}${account.name}`);
+        }
+    }
+
+    renderAssets(cached_assets_data);
 }
 
 function colour(str, alpha=1) {
@@ -74,7 +120,8 @@ function renderAssetsTags(raw_assets_data) {
             let total = account.tags.reduce((acc, t) => acc + t.share, 0);
             for (let j = 0; j < account.tags.length; j ++) {
                 let tag = account.tags[j];
-                data[tag.tag] = ((tag.tag in data) ? data[tag.tag] : 0) + account.amount * (tag.share / total);
+                let amount = isHidden(asset, account) ? 0 : account.amount;
+                data[tag.tag] = ((tag.tag in data) ? data[tag.tag] : 0) + amount * (tag.share / total);
             }
         }
     }
@@ -114,17 +161,18 @@ function renderAssetsChart(raw_assets_data) {
         if (show_breakdown && asset.breakdown.length > 1) {
             for (let i = 0; i < asset.breakdown.length; i ++) {
                 let account = asset.breakdown[i];
+                let amount = isHidden(asset, account) ? 0 : account.amount;
                 data[account.name] = {
                     bgcolour: colour(`${asset.name}${account.name}`, 0.2),
                     bordercolour: colour(`${asset.name}${account.name}`),
-                    amount: account.amount
+                    amount: amount
                 };
             }
         } else {
             data[asset.name] = {
                 bgcolour: colour(asset.name, 0.2),
                 bordercolour: colour(asset.name),
-                amount: asset.breakdown.reduce((acc, d) => acc + d.amount, 0)
+                amount: asset.breakdown.reduce((acc, d) => isHidden(asset, d) ? acc : acc + d.amount, 0)
             };
         }
     }
@@ -162,7 +210,7 @@ function renderAssetsLegend(raw_assets_data) {
     let legend = document.createElement('table');
     legend.id = 'assets_legend';
 
-    function add_row_cells(row, colour, name, url, strvalue, subcolour=null) {
+    function add_row_cells(row, colour, name, url, strvalue, onclick, subcolour=null) {
         let acc_colour_cell = row.insertCell();
         acc_colour_cell.style.backgroundColor = colour;
         acc_colour_cell.className = 'colour';
@@ -176,7 +224,10 @@ function renderAssetsLegend(raw_assets_data) {
         }
 
         let acc_name_cell = row.insertCell();
-        acc_name_cell.innerText = name;
+        let acc_name = document.createElement('span');
+        acc_name.innerText = name;
+        acc_name.onclick = onclick;
+        acc_name_cell.appendChild(acc_name);
 
         if (subcolour == null) {
             acc_name_cell.colSpan = '2';
@@ -208,7 +259,11 @@ function renderAssetsLegend(raw_assets_data) {
                       colour(asset.name),
                       asset.name,
                       asset.url,
-                      strAmount(total));
+                      strAmount(total),
+                      () => toggleHide(asset));
+        if (isHidden(asset)) {
+            row.classList.add('hidden');
+        }
 
         if (asset.breakdown.length == 1) {
             continue;
@@ -221,11 +276,15 @@ function renderAssetsLegend(raw_assets_data) {
             row = legend.insertRow();
             row.classList.add('subaccount');
             row.classList.add('lightbottom');
+            if (isHidden(asset, account)) {
+                row.classList.add('hidden');
+            }
             add_row_cells(row,
                           colour(asset.name),
                           account.name,
                           account.url,
                           `${Math.abs(100 * account.amount / total).toFixed(0)}%`,
+                          () => toggleHide(asset, account),
                           colour(`${asset.name}${account.name}`));
         }
         row.classList.remove('lightbottom');
@@ -237,6 +296,8 @@ function renderAssetsLegend(raw_assets_data) {
 }
 
 function renderAssets(raw_assets_data) {
+    cached_assets_data = raw_assets_data;
+
     function piechart() {
         document.getElementById('assets_chart_container').removeChild(document.getElementById('assets_chart'));
         document.getElementById('assets_chart_container').appendChild(renderAssetsChart(raw_assets_data));

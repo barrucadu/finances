@@ -72,6 +72,12 @@ td {
     width: 99%;
 }
 
+tr.hidden span, tr.hidden .num {
+    text-decoration: line-through;
+    font-style: italic;
+    color: #aaa;
+}
+
 td.colour {
     width: 1px !important;
     padding: 0;
