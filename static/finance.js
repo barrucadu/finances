@@ -216,7 +216,7 @@ function renderAssetsLegend(raw_assets_data) {
     let legend = document.createElement('table');
     legend.id = 'assets_legend';
 
-    function add_row_cells(row, colour, name, url, strvalue, onclick, subcolour=null) {
+    function add_row_cells(row, colour, name, url, strvalue, onclick, tooltip, subcolour=null) {
         let acc_colour_cell = row.insertCell();
         acc_colour_cell.style.backgroundColor = colour;
         acc_colour_cell.className = 'colour';
@@ -249,9 +249,14 @@ function renderAssetsLegend(raw_assets_data) {
         }
 
         let value_cell = row.insertCell();
-        value_cell.innerText = strvalue;
+        let value = document.createElement('span');
+        value.innerText = strvalue;
+        value.title = tooltip;
+        value_cell.appendChild(value);
         value_cell.className = 'num';
     }
+
+    let overalltotal = raw_assets_data.reduce((acc, ass) => acc + ass.breakdown.reduce((acc2, d) => acc2 + d.amount, 0), 0);
 
     let row;
     for (let key in raw_assets_data) {
@@ -266,7 +271,8 @@ function renderAssetsLegend(raw_assets_data) {
                       asset.name,
                       asset.url,
                       strAmount(total),
-                      () => toggleHide(asset));
+                      () => toggleHide(asset),
+                      `${Math.abs(100 * total / overalltotal).toFixed(0)}% of overall portfolio`);
         if (isHidden(asset)) {
             row.classList.add('hidden');
         }
@@ -289,8 +295,9 @@ function renderAssetsLegend(raw_assets_data) {
                           colour(asset.name),
                           account.name,
                           account.url,
-                          `${Math.abs(100 * account.amount / total).toFixed(0)}%`,
+                          strAmount(account.amount),
                           () => toggleHide(asset, account),
+                          `${Math.abs(100 * account.amount / total).toFixed(0)}% of ${asset.name}`,
                           colour(`${asset.name}${account.name}`));
         }
         row.classList.remove('lightbottom');
