@@ -6,7 +6,7 @@ import           Control.Arrow                 (second)
 import           Control.Monad                 (join, mapM)
 import qualified Data.Aeson                    as A
 import           Data.Char                     (toUpper)
-import           Data.List                     (inits, mapAccumL, nub)
+import           Data.List                     (inits, mapAccumL, nub, sortOn)
 import qualified Data.Map                      as M
 import           Data.Maybe                    (fromMaybe, listToMaybe,
                                                 mapMaybe, maybeToList)
@@ -126,7 +126,7 @@ dataFor cfg today txns = A.toJSON Report
 -- | Get the final balance after every day, and all the transaction
 -- deltas on that day.
 dailyBalances :: [H.Transaction] -> [(C.Day, M.Map T.Text Rational, [(T.Text, M.Map T.Text Rational)])]
-dailyBalances = foldr squish [] . snd . mapAccumL process M.empty where
+dailyBalances = foldr squish [] . snd . mapAccumL process M.empty . sortOn H.tdate where
   process bals txn =
     let deltas = toDeltas txn
         bals'  = M.unionWith (+) bals deltas
