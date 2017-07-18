@@ -162,18 +162,23 @@ function renderAssetsChart(raw_assets_data) {
             for (let i = 0; i < asset.breakdown.length; i ++) {
                 let account = asset.breakdown[i];
                 let amount = isHidden(asset, account) ? 0 : account.amount;
-                data[account.name] = {
-                    bgcolour: colour(`${asset.name}${account.name}`, 0.2),
-                    bordercolour: colour(`${asset.name}${account.name}`),
+                if (!zeroish(amount)) {
+                    data[account.name] = {
+                        bgcolour: colour(`${asset.name}${account.name}`, 0.2),
+                        bordercolour: colour(`${asset.name}${account.name}`),
+                        amount: amount
+                    };
+                }
+            }
+        } else {
+            let amount = asset.breakdown.reduce((acc, d) => isHidden(asset, d) ? acc : acc + d.amount, 0);
+            if(!zeroish(amount)) {
+                data[asset.name] = {
+                    bgcolour: colour(asset.name, 0.2),
+                    bordercolour: colour(asset.name),
                     amount: amount
                 };
             }
-        } else {
-            data[asset.name] = {
-                bgcolour: colour(asset.name, 0.2),
-                bordercolour: colour(asset.name),
-                amount: asset.breakdown.reduce((acc, d) => isHidden(asset, d) ? acc : acc + d.amount, 0)
-            };
         }
     }
 
