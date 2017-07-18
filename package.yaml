@@ -5,10 +5,13 @@ executables:
       - base
       - aeson
       - containers
+      - filepath
       - hledger-lib
       - http-types
       - text
       - time
+      - unordered-containers
       - wai
       - wai-middleware-static
       - warp
+      - yaml

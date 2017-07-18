@@ -1,0 +1,20 @@
+http:
+  port: 5000
+  static_dir: ./static
+
+accounts:
+  assets:
+    only:
+      "assets:cavendish":        Cavendish Online
+      "assets:nationwide":       Nationwide
+      "assets:santander:esaver": Santander (eSaver)
+      "assets:santander:main":   Santander (main)
+  income:
+    try:
+      - only:
+          "income:pta": PTA
+      - simple: income
+  budget:
+    simple: assets:santander:main:budget
+  expenses:
+    simple: expenses
