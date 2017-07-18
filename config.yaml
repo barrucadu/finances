@@ -10,10 +10,9 @@ accounts:
       "assets:santander:esaver": Santander (eSaver)
       "assets:santander:main":   Santander (main)
   income:
-    try:
-      - only:
-          "income:pta": PTA
-      - simple: income
+    - only:
+        "income:pta": PTA
+    - simple: income
   budget:
     simple: assets:santander:main:budget
   expenses:

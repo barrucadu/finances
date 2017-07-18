@@ -86,17 +86,16 @@ data AccountRules
   deriving Show
 
 instance Y.FromJSON AccountRules where
-  parseJSON (Y.Object o) = only <|> try <|> simple <|> none where
+  parseJSON (Y.Array  v) = Try . toList <$> mapM A.parseJSON v
+  parseJSON (Y.Object o) = only <|> simple <|> none where
     only = o Y..: "only" >>= \case
       Y.Object o_ -> Only . HM.toList <$> mapM A.parseJSON o_
       x -> A.typeMismatch "only" x
-    try = o Y..: "try" >>= \case
-      Y.Array v_ -> Try . toList <$> mapM A.parseJSON v_
-      x -> A.typeMismatch "try" x
     simple = o Y..: "simple" >>= \case
       Y.String s_ -> pure (Simple s_)
       x -> A.typeMismatch "simple" x
     none = (o Y..: "none" :: A.Parser A.Value) *> pure None
+  parseJSON Y.Null = pure None
   parseJSON x = A.typeMismatch "account rules" x
 
 -- | Rules for an account description.
