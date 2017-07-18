@@ -50,6 +50,14 @@ th, td {
     border-bottom: 1px solid #eee;
 }
 
+.note {
+    font-size: 1rem;
+    text-decoration: none;
+    border-bottom: 1px dotted #ddd;
+    color: #bbb !important;
+    margin-left: 0.5rem;
+}
+
 th {
     font-weight: bold;
     text-align: left;

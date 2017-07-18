@@ -144,7 +144,18 @@ function renderAssetsLegend(raw_assets_data, colours) {
         colour_cell.style.backgroundColor = colours[key];
         colour_cell.className = 'colour';
 
-        row.insertCell().innerText = key;
+        let name_cell = row.insertCell();
+        name_cell.innerText = key;
+
+        if (asset.url !== undefined) {
+            let link = document.createElement('a');
+            link.href = asset.url;
+            link.innerText = '(?)';
+            link.className = 'note';
+            link.title = 'More information...';
+            name_cell.appendChild(link);
+        }
+
         row.insertCell().innerText = strAmount(asset.amount);
     }
 

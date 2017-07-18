@@ -22,12 +22,15 @@ assets:
   "assets:cavendish:MHMIA":
     name: Marlborough UK Micro-Cap
     tag: Funds
+    url: https://markets.ft.com/data/funds/tearsheet/summary?s=gb00b8f8yx59:gbx
   "assets:cavendish:NPMKA":
     name: Neptune Emerging Markets
     tag: Funds
+    url: https://markets.ft.com/data/funds/tearsheet/summary?s=gb00b8j6sv12:gbp
   "assets:cavendish:VALEA":
     name: Vanguard LifeStrategy 20%
     tag: Funds
+    url: https://markets.ft.com/data/funds/tearsheet/summary?s=gb00b4nxy349:gbp
   "assets:nationwide":
     tag: Cash
   "assets:santander":

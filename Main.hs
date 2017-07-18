@@ -13,8 +13,9 @@ import           Data.Foldable                 (toList)
 import qualified Data.HashMap.Lazy             as HM
 import           Data.List                     (inits, mapAccumL, nub)
 import qualified Data.Map                      as M
-import           Data.Maybe                    (fromMaybe, listToMaybe,
-                                                mapMaybe, maybeToList)
+import           Data.Maybe                    (catMaybes, fromMaybe,
+                                                listToMaybe, mapMaybe,
+                                                maybeToList)
 import           Data.Ratio                    (Rational)
 import           Data.Semigroup                ((<>))
 import qualified Data.Text                     as T
@@ -99,14 +100,17 @@ instance Y.FromJSON AccountRules where
   parseJSON x = A.typeMismatch "account rules" x
 
 -- | Rules for an account description.
-data AccountDescription
-  = AccountDescription { accLongName :: Maybe T.Text, accTag :: T.Text }
-  deriving Show
+data AccountDescription = AccountDescription
+  { accLongName :: Maybe T.Text
+  , accTag :: T.Text
+  , accURL :: Maybe T.Text
+  } deriving Show
 
 instance Y.FromJSON AccountDescription where
   parseJSON (Y.Object o) = AccountDescription
     <$> o Y..:? "name"
     <*> o Y..:  "tag"
+    <*> o Y..:? "url"
   parseJSON x = A.typeMismatch "account description" x
 
 
@@ -164,7 +168,9 @@ dataFor cfg today txns = object
       , let date = T.pack (C.formatTime C.defaultTimeLocale "%d/%m" day)
       ]
     breakdown = object
-      [ name .= object [ "amount" .= toDouble amount, "tag" .= accTag desc ]
+      [ name .= object (catMaybes [ Just $ "amount" .= toDouble amount
+                                  , Just $ "tag"    .= accTag desc
+                                  , ("url" .=) <$> accURL desc ])
       | let currentBals = getBalances uptonow
       , (acc, desc) <- assetBreakdown cfg
       , let amount = M.findWithDefault 0 acc currentBals
