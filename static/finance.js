@@ -258,14 +258,13 @@ function renderAssetsLegend(raw_assets_data) {
 
     let overalltotal = raw_assets_data.reduce((acc, ass) => acc + ass.breakdown.reduce((acc2, d) => acc2 + d.amount, 0), 0);
 
-    let row;
     for (let key in raw_assets_data) {
         let asset = raw_assets_data[key];
         let total = asset.breakdown.reduce((acc, d) => acc + d.amount, 0)
 
         if(zeroish(total)) continue;
 
-        row = legend.insertRow();
+        let row = legend.insertRow();
         add_row_cells(row,
                       colour(asset.name),
                       asset.name,
@@ -280,14 +279,12 @@ function renderAssetsLegend(raw_assets_data) {
         if (asset.breakdown.length == 1) {
             continue;
         }
-        row.classList.add('lightbottom');
 
         for (let i = 0; i < asset.breakdown.length; i ++) {
             let account = asset.breakdown[i];
 
-            row = legend.insertRow();
-            row.classList.add('subaccount');
-            row.classList.add('lightbottom');
+            let row = legend.insertRow();
+            row.classList.add('sub');
             if (isHidden(asset, account)) {
                 row.classList.add('hidden');
             }
@@ -300,10 +297,7 @@ function renderAssetsLegend(raw_assets_data) {
                           `${Math.abs(100 * account.amount / total).toFixed(0)}% of ${asset.name}`,
                           colour(`${asset.name}${account.name}`));
         }
-        row.classList.remove('lightbottom');
     }
-
-    row.classList.add('nobottom');
 
     return legend;
 }
@@ -333,7 +327,6 @@ function renderAssets(raw_assets_data) {
 function renderTable(raw_data, ele, flipGoodBad) {
     ele.innerHTML = '';
 
-    let lastRow;
     let sources = Object.keys(raw_data).sort();
     for (let i = 0; i < sources.length; i ++) {
         let source = sources[i];
@@ -349,14 +342,10 @@ function renderTable(raw_data, ele, flipGoodBad) {
         showAmount(balance, raw_data[source].amount, false, false, true)
         balance.classList.add('num');
 
-        lastRow = ele.insertRow();
-        lastRow.appendChild(title);
-        lastRow.appendChild(delta);
-        lastRow.appendChild(balance);
-    }
-
-    if(lastRow !== undefined) {
-        lastRow.className = 'nobottom';
+        let row = ele.insertRow();
+        row.appendChild(title);
+        row.appendChild(delta);
+        row.appendChild(balance);
     }
 }
 
@@ -378,7 +367,6 @@ function renderHistory(raw_history_data) {
     table.innerHTML = '';
 
     let totalDelta = 0;
-    let lastRow;
     let days = Object.keys(raw_history_data).sort().reverse();
     for (let i = 0; i < days.length; i ++) {
         let day = days[i];
@@ -396,20 +384,18 @@ function renderHistory(raw_history_data) {
             showAmount(delta, entry.delta)
             delta.classList.add('num');
 
-            lastRow = table.insertRow();
-            lastRow.className = 'lightbottom';
-            lastRow.appendChild(title);
-            lastRow.appendChild(description);
-            lastRow.appendChild(delta);
+            let row = table.insertRow();
+            if (j > 0) {
+                row.classList.add('sub');
+            }
+            row.appendChild(title);
+            row.appendChild(description);
+            row.appendChild(delta);
 
             title = document.createElement('th');
             totalDelta += entry.delta;
         }
-
-        lastRow.className = '';
     }
-
-    lastRow.className = 'nobottom';
 
     showAmount(total, totalDelta);
 }

@@ -36,22 +36,26 @@ table {
     border-collapse: collapse;
 }
 
-.subaccount td {
+#assets_legend .sub td {
     font-size: 0.9rem !important;
 }
 
 th, td {
     padding: 0.5em;
-    border-bottom: 1px solid #ddd;
+    border-top: 1px solid #ddd;
     white-space: nowrap;
 }
 
-.nobottom th, .lightbottom th, .nobottom td {
-    border-bottom: none;
+tr:first-child th, tr:first-child td {
+    border-top: none;
 }
 
-.lightbottom td {
-    border-bottom: 1px solid #eee;
+tr + tr.sub th {
+    border-top: none;
+}
+
+tr + tr.sub td {
+    border-top: 1px solid #eee;
 }
 
 .note {
