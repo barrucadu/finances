@@ -50,6 +50,7 @@ data SubaccountReport = SubaccountReport
   , srAmount :: Rational
   , srTags :: [(T.Text, Int)]
   , srURL :: Maybe T.Text
+  , srHistory :: [Rational]
   } deriving Show
 
 instance A.ToJSON SubaccountReport where
@@ -59,6 +60,7 @@ instance A.ToJSON SubaccountReport where
     , "tags"   A..= [ A.object [ "tag" A..= tag, "share" A..= share ]
                     | (tag, share) <- srTags sr
                     ]
+    , "history" A..= A.toJSON (map toDouble $ srHistory sr)
     ] ++ maybe [] (\u -> [ "url" A..= u ]) (srURL sr)
 
 -- | A report about the current and prior states of an account

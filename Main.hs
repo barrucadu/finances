@@ -81,17 +81,18 @@ dataFor cfg today txns = A.toJSON Report
         { arName      = accName acc
         , arBreakdown =
             [ SubaccountReport
-              { srName   = fromMaybe (accName acc) (subName subacc)
-              , srAmount = amount
-              , srTags   = subTag subacc
-              , srURL    = subURL subacc
+              { srName    = fromMaybe (accName acc) (subName subacc)
+              , srAmount  = amountOn today
+              , srTags    = subTag subacc
+              , srURL     = subURL subacc
+              , srHistory = [ amountOn (C.fromGregorian y m d) | d <- [1..C.gregorianMonthLength y m] ]
               }
-            | subacc <- accBreakdown acc
-            , let amount = M.findWithDefault 0 (subHledgerAccount subacc) currentBals
+            | let (y, m, _) = C.toGregorian today
+            , subacc <- accBreakdown acc
+            , let amountOn day = M.findWithDefault 0 (subHledgerAccount subacc) (balancesAt day balances)
             ]
         }
       | acc <- assetAccounts cfg
-      , let currentBals = getBalances uptonow
       ]
 
     balanceFrom whenf accf valf =
@@ -102,6 +103,7 @@ dataFor cfg today txns = A.toJSON Report
       , account <- maybeToList (accf acc)
       , let old = M.findWithDefault 0 acc priorBals
       ]
+
     history =
       [ (day, [ TransactionReport { trTitle = txntitle, trDelta = assetDelta }
               | (txntitle, txndeltas) <- reverse daytxns

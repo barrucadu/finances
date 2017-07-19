@@ -3,14 +3,25 @@ const THIS_MONTH = new Date().getMonth() + 1;
 var visible_month = 0;
 var cached_assets_data = undefined;
 var show_breakdown = false;
+var show_history = false;
 var hidden_accounts = {};
 
 function hoverCallback(f) {
     return function (tooltipItem, data) {
-        var label = data.labels[tooltipItem.index];
+        let general_label  = data.labels[tooltipItem.index];
+        let specific_label = data.datasets[tooltipItem.datasetIndex].label;
+        let label = (specific_label == undefined) ? general_label : specific_label;
         let value = data.datasets[tooltipItem.datasetIndex].data[tooltipItem.index];
         return `${label}: ${f(value)}`;
     }
+}
+
+function hasHistory(d) {
+    if ('breakdown' in d) {
+        return d.breakdown.find(hasHistory) != undefined;
+    }
+
+    return d.history.find(v => !zeroish(v)) != undefined;
 }
 
 function isHidden(asset, account=null) {
@@ -74,6 +85,10 @@ function zeroise(val) {
     return (val > -0.01) ? val : 0
 }
 
+function range (start, end) {
+    return [...Array(1 + end - start).keys()].map(v => start + v)
+}
+
 function randRange(min, max) {
     min = Math.ceil(min);
     max = Math.floor(max);
@@ -129,16 +144,87 @@ function renderAssetsTags(raw_assets_data) {
     return canvas;
 }
 
-function renderAssetsChart(raw_assets_data) {
+function renderAssetsHistoryChart(raw_assets_data) {
     let canvas = document.createElement('canvas');
-    canvas.id = 'assets_chart';
+    canvas.id = 'assets_history';
+    canvas.width = 600;
+    canvas.height = 300;
+
+    // to avoid duplication of options as these can't be set on the chart...
+    function mkdata(name, history, colourkey) {
+        let last = history[history.length-1];
+        let buffer = [null,null,null,null,last];
+        return {
+            label: name,
+            // some buffer to make the right edge of the chart prettier
+            data: history.concat(buffer),
+            backgroundColor: colour(colourkey, 0.2),
+            borderColor: colour(colourkey),
+            fill: 'origin',
+            spanGaps: true,
+            borderWidth: 1,
+            steppedLine: 'before',
+            pointStyle: 'rect',
+            pointBackgroundColor: colour(colourkey),
+            pointRadius: 0,
+            pointHitRadius: 25
+        };
+    }
+
+    let numdays = 0;
+    let data = [];
+    for (let key in raw_assets_data) {
+        let asset = raw_assets_data[key];
+        if (show_breakdown && !(asset.breakdown.length == 1 && asset.breakdown[0].name == asset.name)) {
+            for (let i = 0; i < asset.breakdown.length; i ++) {
+                let account = asset.breakdown[i];
+                if (!isHidden(asset, account) && hasHistory(account)) {
+                    numdays = account.history.length;
+                    data.push(mkdata(account.name, account.history, `${asset.name}${account.name}`));
+                }
+            }
+        } else {
+            if(!isHidden(asset) && hasHistory(asset)) {
+                let totalHistory = [];
+                for (let i = 0; i < asset.breakdown.length; i ++) {
+                    for (let j = 0; j < asset.breakdown[i].history.length; j ++) {
+                        if (totalHistory[j] === undefined) {
+                            totalHistory[j] = 0;
+                        }
+                        totalHistory[j] += asset.breakdown[i].history[j];
+                    }
+                }
+                numdays = totalHistory.length;
+                data.push(mkdata(asset.name, totalHistory, asset.name));
+            }
+        }
+    }
+
+    new Chart(canvas.getContext('2d'), {
+        type: 'line',
+        data: {
+            datasets: data,
+            labels: range(1, 32).map(d => (d > numdays) ? ' ' : d)
+        },
+        options: {
+            tooltips: { callbacks: { label: hoverCallback(strAmount) } },
+            scales: { yAxes: [ { ticks: { callback: (v) => `£${v}` } } ] }
+        }
+    });
+
+    return canvas;
+}
+
+function renderAssetsSnapshotChart(raw_assets_data) {
+    let canvas = document.createElement('canvas');
+    canvas.id = 'assets_snapshot';
     canvas.width = 300;
     canvas.height = 300;
 
     let data = {};
     for (let key in raw_assets_data) {
         let asset = raw_assets_data[key];
-        if (show_breakdown && asset.breakdown.length > 1) {
+        if (show_breakdown && !(asset.breakdown.length == 1 && asset.breakdown[0].name == asset.name)) {
             for (let i = 0; i < asset.breakdown.length; i ++) {
                 let account = asset.breakdown[i];
                 let amount = isHidden(asset, account) ? 0 : account.amount;
@@ -192,7 +278,7 @@ function renderAssetsChart(raw_assets_data) {
     return canvas;
 }
 
-function renderAssetsLegend(raw_assets_data) {
+function renderAssetsLegend(raw_assets_data, show_with_history=false) {
     let overalltotal = raw_assets_data.reduce((acc, ass) => acc + ass.breakdown.reduce((acc2, d) => acc2 + d.amount, 0), 0);
 
     let accounts = [];
@@ -200,11 +286,11 @@ function renderAssetsLegend(raw_assets_data) {
         let asset = raw_assets_data[key];
         let total = asset.breakdown.reduce((acc, d) => acc + d.amount, 0)
 
-        if(zeroish(total)) continue;
-
         let subaccounts = [];
         for (let i = 0; i < asset.breakdown.length; i ++) {
             let account = asset.breakdown[i];
+
+            if (zeroish(account.amount) && !(hasHistory(account) && show_with_history)) continue;
 
             subaccounts.push({
                 'name': account.name,
@@ -218,16 +304,18 @@ function renderAssetsLegend(raw_assets_data) {
             });
         }
 
-        accounts.push({
-            'asset': asset.name,
-            'url': asset.url,
-            'colour': colour(asset.name),
-            'amount': strAmount(total),
-            'percentage': Math.abs(100 * total / overalltotal).toFixed(0),
-            'subaccount': (subaccounts.length == 1) ? [] : subaccounts,
-            'hidden': isHidden(asset),
-            'onclick': `toggleHide(${JSON.stringify(asset)})`
-        });
+        if (!zeroish(total) || (hasHistory(asset) && show_with_history)) {
+            accounts.push({
+                'asset': asset.name,
+                'url': asset.url,
+                'colour': colour(asset.name),
+                'amount': strAmount(total),
+                'percentage': Math.abs(100 * total / overalltotal).toFixed(0),
+                'subaccount': (subaccounts.length == 1 && subaccounts[0].name == asset.name) ? [] : subaccounts,
+                'hidden': isHidden(asset),
+                'onclick': `toggleHide(${JSON.stringify(asset)})`
+            });
+        }
     }
 
     let legend = document.createElement('table');
@@ -240,29 +328,37 @@ function renderAssetsLegend(raw_assets_data) {
     return legend;
 }
 
-function renderAssets(raw_assets_data, redrawFull=true) {
+function renderAssets(raw_assets_data, redrawTags=true, redrawLegend=true) {
     cached_assets_data = raw_assets_data;
 
-    function piechart() {
-        document.getElementById('assets_chart_container').removeChild(document.getElementById('assets_chart'));
-        document.getElementById('assets_chart_container').appendChild(renderAssetsChart(raw_assets_data));
-
-        document.getElementById('assets_chart').onclick = function() {
-            show_breakdown = !show_breakdown;
-            piechart();
-        };
-    }
-
-    if (redrawFull) {
+    // tags
+    if (redrawTags) {
         document.getElementById('assets_tags_container').removeChild(document.getElementById('assets_tags'));
         document.getElementById('assets_tags_container').appendChild(renderAssetsTags(raw_assets_data));
     }
 
-    piechart();
+    // chart
+    document.getElementById('assets_history_container').style.display  = show_history ? 'block' : 'none';
+    document.getElementById('assets_tags_container').style.display     = show_history ? 'none'  : 'block';
+    document.getElementById('assets_snapshot_container').style.display = show_history ? 'none'  : 'block';
 
-    if (redrawFull) {
+    if (show_history) {
+        document.getElementById('assets_history_container').removeChild(document.getElementById('assets_history'));
+        document.getElementById('assets_history_container').appendChild(renderAssetsHistoryChart(raw_assets_data));
+    } else {
+        document.getElementById('assets_snapshot_container').removeChild(document.getElementById('assets_snapshot'));
+        document.getElementById('assets_snapshot_container').appendChild(renderAssetsSnapshotChart(raw_assets_data));
+    }
+
+    document.getElementById(show_history ? 'assets_history' : 'assets_snapshot').onclick = function() {
+        show_breakdown = !show_breakdown;
+        renderAssets(raw_assets_data, false, false);
+    };
+
+    // legend
+    if (redrawLegend) {
         document.getElementById('assets_legend_container').removeChild(document.getElementById('assets_legend'));
-        document.getElementById('assets_legend_container').appendChild(renderAssetsLegend(raw_assets_data));
+        document.getElementById('assets_legend_container').appendChild(renderAssetsLegend(raw_assets_data, show_history));
     }
 }
 
@@ -437,7 +533,10 @@ window.onload = () => {
             renderFinancesFor(visible_month);
         } else if (e.key == 'b') {
             show_breakdown = !show_breakdown;
-            renderAssets(cached_assets_data, false);
+            renderAssets(cached_assets_data, false, false);
+        } else if (e.key == 'h') {
+            show_history = !show_history;
+            renderAssets(cached_assets_data, false, true);
         }
     }
 };

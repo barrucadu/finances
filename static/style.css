@@ -36,6 +36,11 @@ table {
     border-collapse: collapse;
 }
 
+#assets_history_container {
+    display: none;
+    flex: 2;
+}
+
 #assets_legend .sub td {
     font-size: 0.9rem !important;
 }
