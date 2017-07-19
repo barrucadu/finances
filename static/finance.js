@@ -1,5 +1,6 @@
 const THIS_MONTH = new Date().getMonth() + 1;
 
+var visible_month = 0;
 var cached_assets_data = undefined;
 var show_breakdown = false;
 var hidden_accounts = {};
@@ -239,7 +240,7 @@ function renderAssetsLegend(raw_assets_data) {
     return legend;
 }
 
-function renderAssets(raw_assets_data) {
+function renderAssets(raw_assets_data, redrawFull=true) {
     cached_assets_data = raw_assets_data;
 
     function piechart() {
@@ -252,13 +253,17 @@ function renderAssets(raw_assets_data) {
         };
     }
 
-    document.getElementById('assets_tags_container').removeChild(document.getElementById('assets_tags'));
-    document.getElementById('assets_tags_container').appendChild(renderAssetsTags(raw_assets_data));
+    if (redrawFull) {
+        document.getElementById('assets_tags_container').removeChild(document.getElementById('assets_tags'));
+        document.getElementById('assets_tags_container').appendChild(renderAssetsTags(raw_assets_data));
+    }
 
     piechart();
 
-    document.getElementById('assets_legend_container').removeChild(document.getElementById('assets_legend'));
-    document.getElementById('assets_legend_container').appendChild(renderAssetsLegend(raw_assets_data));
+    if (redrawFull) {
+        document.getElementById('assets_legend_container').removeChild(document.getElementById('assets_legend'));
+        document.getElementById('assets_legend_container').appendChild(renderAssetsLegend(raw_assets_data));
+    }
 }
 
 function renderTable(raw_data, ele, flipGoodBad=false) {
@@ -332,6 +337,18 @@ function renderHistory(raw_history_data) {
     total.innerText = `${strAmount(totalDelta, true)}`;
 }
 
+function renderFinancesForLastMonth() {
+    if (visible_month > 1) {
+        renderFinancesFor(visible_month - 1);
+    }
+}
+
+function renderFinancesForNextMonth() {
+    if (visible_month < 12) {
+        renderFinancesFor(visible_month + 1);
+    }
+}
+
 function renderFinancesFor(month) {
     let httpRequest = new XMLHttpRequest();
     httpRequest.onreadystatechange = function() {
@@ -345,21 +362,13 @@ function renderFinancesFor(month) {
 }
 
 function renderFinances(month, data) {
+    visible_month = month;
+
     document.title = data.when;
     document.getElementById('when').innerText = data.when;
 
-    document.getElementById('back').onclick = () => renderFinancesFor(month - 1);
-    document.getElementById('next').onclick = () => renderFinancesFor(month + 1);
     document.getElementById('back').style.visibility = (month == 1)  ? 'hidden' : 'visible';
     document.getElementById('next').style.visibility = (month == 12) ? 'hidden' : 'visible';
-
-    document.onkeyup = function(e) {
-        if (e.key == 'ArrowLeft' && month > 1) {
-            renderFinancesFor(month - 1);
-        } else if (e.key == 'ArrowRight' && month < 12) {
-            renderFinancesFor(month + 1);
-        }
-    }
 
     renderAssets(data.assets);
     renderIncome(data.income);
@@ -417,6 +426,20 @@ window.onload = () => {
 
     // Fetch the data
     renderFinancesFor(THIS_MONTH);
+
+    // Set up keybindings
+    document.onkeyup = function(e) {
+        if (e.key == 'ArrowLeft') {
+            renderFinancesForLastMonth();
+        } else if (e.key == 'ArrowRight') {
+            renderFinancesForNextMonth();
+        } else if (e.key == 'r') {
+            renderFinancesFor(visible_month);
+        } else if (e.key == 'b') {
+            show_breakdown = !show_breakdown;
+            renderAssets(cached_assets_data, false);
+        }
+    }
 };
 
 
