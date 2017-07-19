@@ -45,7 +45,7 @@ function toggleHide(asset, account=null) {
             toggle(asset.name);
 
             for (let i = 0; i < asset.breakdown.length; i ++) {
-                if (asset.breakdown[i] == account) continue;
+                if (asset.breakdown[i].name == account.name) continue;
                 toggle(`${asset.name}${asset.breakdown[i].name}`);
             }
         } else {
@@ -83,27 +83,6 @@ function strAmount(amount, showPlus=false) {
     let sign = (amount > -0.01) ? (showPlus ? '+' : '') : '-';
     let amt = Math.abs(amount).toFixed(2);
     return `${sign}£${amt}`;
-}
-
-function showAmount(ele, amount, brackets=false, flipGoodBad=false, noEmphasisGood=false, noEmphasisBad=false) {
-    ele.classList.remove('good');
-    ele.classList.remove('bad');
-    ele.innerText = '';
-
-    if (amount != 0) {
-        let isGood = flipGoodBad ? amount < 0 : amount > 0;
-
-        if (isGood && !noEmphasisGood) {
-            ele.classList.add('good');
-        } else if (!isGood && !noEmphasisBad) {
-            ele.classList.add('bad');
-        }
-
-        ele.innerText = `${strAmount(amount, !noEmphasisGood)}`;
-        if (brackets) {
-            ele.innerText = `(${ele.innerText})`;
-        }
-    }
 }
 
 function renderAssetsTags(raw_assets_data) {
@@ -213,92 +192,50 @@ function renderAssetsChart(raw_assets_data) {
 }
 
 function renderAssetsLegend(raw_assets_data) {
-    let legend = document.createElement('table');
-    legend.id = 'assets_legend';
-
-    function add_row_cells(row, colour, name, url, strvalue, onclick, tooltip, subcolour=null) {
-        let acc_colour_cell = row.insertCell();
-        acc_colour_cell.style.backgroundColor = colour;
-        acc_colour_cell.className = 'colour';
-        acc_colour_cell.appendChild(document.createElement('span'));
-
-        if (subcolour !== null) {
-            let subacc_colour_cell = row.insertCell();
-            subacc_colour_cell.style.backgroundColor = subcolour;
-            subacc_colour_cell.className = 'colour';
-            subacc_colour_cell.appendChild(document.createElement('span'));
-        }
-
-        let acc_name_cell = row.insertCell();
-        let acc_name = document.createElement('span');
-        acc_name.innerText = name;
-        acc_name.onclick = onclick;
-        acc_name_cell.appendChild(acc_name);
-
-        if (subcolour == null) {
-            acc_name_cell.colSpan = '2';
-        }
-
-        if (url !== undefined) {
-            let link = document.createElement('a');
-            link.href = url;
-            link.innerText = '(?)';
-            link.className = 'note';
-            link.title = 'More information...';
-            acc_name_cell.appendChild(link);
-        }
-
-        let value_cell = row.insertCell();
-        let value = document.createElement('span');
-        value.innerText = strvalue;
-        value.title = tooltip;
-        value_cell.appendChild(value);
-        value_cell.className = 'num';
-    }
-
     let overalltotal = raw_assets_data.reduce((acc, ass) => acc + ass.breakdown.reduce((acc2, d) => acc2 + d.amount, 0), 0);
 
+    let accounts = [];
     for (let key in raw_assets_data) {
         let asset = raw_assets_data[key];
         let total = asset.breakdown.reduce((acc, d) => acc + d.amount, 0)
 
         if(zeroish(total)) continue;
 
-        let row = legend.insertRow();
-        add_row_cells(row,
-                      colour(asset.name),
-                      asset.name,
-                      asset.url,
-                      strAmount(total),
-                      () => toggleHide(asset),
-                      `${Math.abs(100 * total / overalltotal).toFixed(0)}% of overall portfolio`);
-        if (isHidden(asset)) {
-            row.classList.add('hidden');
-        }
-
-        if (asset.breakdown.length == 1) {
-            continue;
-        }
-
+        let subaccounts = [];
         for (let i = 0; i < asset.breakdown.length; i ++) {
             let account = asset.breakdown[i];
 
-            let row = legend.insertRow();
-            row.classList.add('sub');
-            if (isHidden(asset, account)) {
-                row.classList.add('hidden');
-            }
-            add_row_cells(row,
-                          colour(asset.name),
-                          account.name,
-                          account.url,
-                          strAmount(account.amount),
-                          () => toggleHide(asset, account),
-                          `${Math.abs(100 * account.amount / total).toFixed(0)}% of ${asset.name}`,
-                          colour(`${asset.name}${account.name}`));
+            subaccounts.push({
+                'name': account.name,
+                'url': account.url,
+                'colour': colour(asset.name),
+                'subcolour': colour(`${asset.name}${account.name}`),
+                'amount': strAmount(account.amount),
+                'percentage': Math.abs(100 * account.amount / total).toFixed(0),
+                'hidden': isHidden(asset, account),
+                'onclick': `toggleHide(${JSON.stringify(asset)},${JSON.stringify(account)})`
+            });
         }
+
+        accounts.push({
+            'asset': asset.name,
+            'url': asset.url,
+            'colour': colour(asset.name),
+            'amount': strAmount(total),
+            'percentage': Math.abs(100 * total / overalltotal).toFixed(0),
+            'subaccount': (subaccounts.length == 1) ? [] : subaccounts,
+            'hidden': isHidden(asset),
+            'onclick': `toggleHide(${JSON.stringify(asset)})`
+        });
     }
 
+    let legend = document.createElement('table');
+    legend.id = 'assets_legend';
+    legend.innerHTML = Mustache.render(
+        TPL_ASSETS_LEGEND_TABLE,
+        { 'account': accounts },
+        { 'show_account': TPL_PART_SHOW_ACCOUNT }
+    );
     return legend;
 }
 
@@ -324,37 +261,32 @@ function renderAssets(raw_assets_data) {
     document.getElementById('assets_legend_container').appendChild(renderAssetsLegend(raw_assets_data));
 }
 
-function renderTable(raw_data, ele, flipGoodBad) {
-    ele.innerHTML = '';
-
+function renderTable(raw_data, ele, flipGoodBad=false) {
+    let entries = [];
     let sources = Object.keys(raw_data).sort();
     for (let i = 0; i < sources.length; i ++) {
         let source = sources[i];
-        if (zeroish(raw_data[source].amount)) continue;
+        let data   = raw_data[source];
 
-        let title = document.createElement('th');
-        title.innerText = source;
+        if (data.amount < 0.01) continue;
 
-        let delta = document.createElement('td');
-        showAmount(delta, raw_data[source].delta, true, flipGoodBad)
-
-        let balance = document.createElement('td');
-        showAmount(balance, raw_data[source].amount, false, false, true)
-        balance.classList.add('num');
-
-        let row = ele.insertRow();
-        row.appendChild(title);
-        row.appendChild(delta);
-        row.appendChild(balance);
+        entries.push({
+            'source': source,
+            'good':   (data.delta > 0) ? !flipGoodBad : flipGoodBad,
+            'delta':  (data.delta >= 0.01) ? strAmount(data.delta, true) : '',
+            'amount': strAmount(data.amount)
+        });
     }
+
+    ele.innerHTML = Mustache.render(TPL_SUMMARY_TABLE, { 'entry': entries });
 }
 
 function renderIncome(raw_income_data) {
-    renderTable(raw_income_data, document.getElementById('income_table'), false);
+    renderTable(raw_income_data, document.getElementById('income_table'));
 }
 
 function renderBudget(raw_budget_data) {
-    renderTable(raw_budget_data, document.getElementById('budget_table'), false);
+    renderTable(raw_budget_data, document.getElementById('budget_table'));
 }
 
 function renderExpenses(raw_expenses_data) {
@@ -362,42 +294,42 @@ function renderExpenses(raw_expenses_data) {
 }
 
 function renderHistory(raw_history_data) {
-    let table = document.getElementById('history_table');
-    let total = document.getElementById('history_total');
-    table.innerHTML = '';
-
+    let entries = [];
     let totalDelta = 0;
     let days = Object.keys(raw_history_data).sort().reverse();
     for (let i = 0; i < days.length; i ++) {
-        let day = days[i];
+        let day  = days[i];
+        let data = raw_history_data[day];
 
-        let title = document.createElement('th');
-        title.innerText = day;
+        let transactions = [];
+        for (let j = 0; j < data.length; j ++) {
+            let transaction = data[j];
 
-        for (let j = 0; j < raw_history_data[day].length; j ++) {
-            let entry = raw_history_data[day][j];
-            if (zeroish(entry.delta)) continue;
+            if (zeroish(transaction.delta)) continue;
 
-            let description = document.createElement('td');
-            description.innerText = entry.title;
-            let delta = document.createElement('td');
-            showAmount(delta, entry.delta)
-            delta.classList.add('num');
+            transactions.push({
+                'title': transaction.title,
+                'good':  transaction.delta > 0,
+                'delta': strAmount(transaction.delta, true),
+            });
 
-            let row = table.insertRow();
-            if (j > 0) {
-                row.classList.add('sub');
-            }
-            row.appendChild(title);
-            row.appendChild(description);
-            row.appendChild(delta);
+            totalDelta += transaction.delta;
+        }
 
-            title = document.createElement('th');
-            totalDelta += entry.delta;
+        if (transactions.length > 0) {
+            entries.push({
+                'day': day,
+                'first': transactions[0],
+                'rest': transactions.slice(1)
+            });
         }
     }
 
-    showAmount(total, totalDelta);
+    document.getElementById('history_table').innerHTML = Mustache.render(TPL_HISTORY_TABLE, { 'entry': entries });
+
+    let total = document.getElementById('history_total');
+    total.className = (totalDelta > 0) ? 'good' : 'bad';
+    total.innerText = `${strAmount(totalDelta, true)}`;
 }
 
 function renderFinancesFor(month) {
@@ -486,3 +418,79 @@ window.onload = () => {
     // Fetch the data
     renderFinancesFor(THIS_MONTH);
 };
+
+
+/*****************************************************************************
+ * TEMPLATES
+ *****************************************************************************/
+
+// The assets legend table.
+const TPL_ASSETS_LEGEND_TABLE = `
+{{#account}}
+  {{>show_account}}
+  {{#subaccount}}
+    {{>show_account}}
+  {{/subaccount}}
+{{/account}}
+`;
+
+// Partial for displaying a single account.  Used in
+// TPL_ASSETS_LEGEND_TABLE.
+const TPL_PART_SHOW_ACCOUNT = `
+<tr class="{{#name}}sub{{/name}} {{#hidden}}hidden{{/hidden}}">
+  <td class="colour" style="background-color: {{colour}}">
+    <span></span>
+  </td>
+  {{#subcolour}}
+    <td class="colour" style="background-color: {{subcolour}}">
+      <span></span>
+    </td>
+  {{/subcolour}}
+  <td {{^subcolour}}colspan="2"{{/subcolour}}>
+    {{^name}}
+      <span onclick="{{onclick}}">{{asset}}</span>
+    {{/name}}{{#name}}
+      <span onclick="{{onclick}}">{{name}}</span>
+    {{/name}}
+    {{#url}}
+      <a class="note" href="{{url}}" title="More information...">(?)</a>
+    {{/url}}
+  </td>
+  <td class="num">
+    {{^name}}
+      <span title="{{percentage}}% of overall portfolio">{{amount}}</span>
+    {{/name}}{{#name}}
+      <span title="{{percentage}}% of {{asset}}">{{amount}}</span>
+    {{/name}}
+  </td>
+</tr>
+`;
+
+// The "income", "budget", and "expenses" summary tables.
+const TPL_SUMMARY_TABLE = `
+{{#entry}}
+  <tr>
+    <th>{{source}}</th>
+    <td class="{{#good}}good{{/good}}{{^good}}bad{{/good}}">{{delta}}</td>
+    <td>{{amount}}</td>
+  </tr>
+{{/entry}}
+`;
+
+// The "history" table.
+const TPL_HISTORY_TABLE = `
+{{#entry}}
+  <tr>
+    <th>{{day}}</th>
+    <td>{{first.title}}</td>
+    <td class="{{#first.good}}good{{/first.good}}{{^first.good}}bad{{/first.good}}">{{first.delta}}</td>
+  </tr>
+  {{#rest}}
+    <tr class="sub">
+      <th></th>
+      <td>{{title}}</td>
+      <td class="{{#good}}good{{/good}}{{^good}}bad{{/good}}">{{delta}}</td>
+    </tr>
+  {{/rest}}
+{{/entry}}
+`;
