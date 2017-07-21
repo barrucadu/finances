@@ -2,7 +2,8 @@
   <head>
     <title></title>
     <meta charset="UTF-8">
-    <script src="vendor/Chart.min.js" type="text/javascript"></script>
+    <script src="vendor/highcharts.min.js" type="text/javascript"></script>
+    <script src="vendor/highstock.min.js"></script>
     <script src="vendor/mustache.min.js" type="text/javascript"></script>
     <script src="finance.js" type="text/javascript"></script>
     <link rel="stylesheet" href="style.css" type="text/css">
@@ -16,42 +17,40 @@
 
     <div id="assets">
       <h2>Assets</h2>
-      <div class="container">
-        <div id="assets_history_container" class="noborder">
-          <canvas id="assets_history"></canvas>
+      <div class="container" style="align-items: center;">
+        <div id="assets_history_chart_container" class="noborder" style="width: 83% !important"></div>
+        <div id="assets_tags_legend_container" class="noborder">
+          <table id="assets_tags_legend"></table>
         </div>
-        <div id="assets_tags_container" class="noborder">
-          <canvas id="assets_tags"></canvas>
+        <div id="assets_tags_chart_container" class="noborder wide" style="width: 33% !important"></div>
+        <div id="assets_balances_chart_container" class="noborder wide" style="width: 33% !important"></div>
+        <div id="assets_balances_legend_container" class="noborder">
+          <table id="assets_balances_legend"></table>
         </div>
-        <div id="assets_snapshot_container" class="noborder">
-          <canvas id="assets_snapshot"></canvas>
-        </div>
-        <div id="assets_legend_container" class="noborder">
-          <table id="assets_legend"></table>
-        </div>
+      </div>
     </div>
 
     <div class="container">
       <div id="income">
         <h2>Income</h2>
-        <table id="income_table"></table>
+        <table id="income_table" class="wide"></table>
       </div>
 
       <div id="budget">
         <h2>Budget</h2>
-        <table id="budget_table"></table>
+        <table id="budget_table" class="wide"></table>
       </div>
 
       <div id="expenses">
         <h2>Expenses</h2>
-        <table id="expenses_table"></table>
+        <table id="expenses_table" class="wide"></table>
       </div>
     </div>
 
     <div id="history">
       <h2>History</h2>
 
-      <table id="history_table"></table>
+      <table id="history_table" class="wide"></table>
 
       <p><strong>Total:</strong> <span id="history_total"></span></p>
     </div>

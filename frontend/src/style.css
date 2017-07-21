@@ -31,18 +31,16 @@ canvas {
 }
 
 table {
-    width: 100%;
     font-size: 1.1rem;
     border-collapse: collapse;
 }
 
-#assets_history_container {
-    display: none;
-    flex: 2;
+table.wide {
+    width: 100%;
 }
 
-#assets_legend .sub td {
-    font-size: 0.9rem !important;
+table.wide td {
+    width: 99%;
 }
 
 th, td {
@@ -78,7 +76,6 @@ th {
 
 td {
     text-align: left;
-    width: 99%;
 }
 
 tr.hidden span, tr.hidden .num {
@@ -105,7 +102,11 @@ td.good, td.bad {
     text-align: center;
 }
 
-td.num {
+td.left {
+    text-align: left;
+}
+
+td.right {
     text-align: right;
 }
 
@@ -125,13 +126,22 @@ div {
 
 .container {
     display: flex;
+    flex: auto;
+    justify-content: center;
+    width: 100%;
 }
 
-.container div {
-    flex: 1;
+.container > div {
+    flex-grow: 1;
 }
 
-.container div + div {
+.container > div.wide {
+    flex-grow: 2;
+    padding: 0;
+    margin: 0;
+}
+
+.container > div + div {
     border-left: 1px solid #ddd;
 }
 
@@ -139,9 +149,34 @@ div {
     border: none;
 }
 
-#assets_legend_container {
+#assets_balances_legend, #assets_tags_legend {
+    font-size: 0.9rem !important;
+}
+
+#assets_balances_legend .sub td {
+    font-size: 0.8rem !important;
+}
+
+#assets_tags_legend_container, #assets_balances_legend_container {
     display: flex;
     align-items: center;
+    margin-right: 0;
+    padding-right: 0;
+}
+
+#assets_tags_legend_container {
+    justify-content: flex-end;
+}
+
+#assets_balances_legend_container {
+    justify-content: flex-start;
+}
+
+#assets_history_chart_container {
+    display: none;
+    flex-grow: 5;
+    padding: 0;
+    margin: 0;
 }
 
 #history {
@@ -152,6 +187,11 @@ div {
 #history p {
     text-align: center;
     font-size: 1.1rem;
+}
+
+.highcharts-container {
+    margin: 0;
+    padding: 0;
 }
 
 @font-face {

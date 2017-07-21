@@ -1,6 +1,6 @@
 {
   "dependencies": {
-    "chart.js": "^2.6.0",
+    "highcharts": "^5.0.12",
     "mustache": "^2.3.0"
   }
 }

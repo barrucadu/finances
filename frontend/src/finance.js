@@ -2,7 +2,6 @@ const THIS_MONTH = new Date().getMonth() + 1;
 
 var visible_month = 0;
 var cached_assets_data = undefined;
-var show_breakdown = false;
 var show_history = false;
 var hidden_accounts = {};
 
@@ -14,14 +13,6 @@ function hoverCallback(f) {
         let value = data.datasets[tooltipItem.datasetIndex].data[tooltipItem.index];
         return `${label}: ${f(value)}`;
     }
-}
-
-function hasHistory(d) {
-    if ('breakdown' in d) {
-        return d.breakdown.find(hasHistory) != undefined;
-    }
-
-    return d.history.find(v => !zeroish(v)) != undefined;
 }
 
 function isHidden(asset, account=null) {
@@ -68,13 +59,13 @@ function toggleHide(asset, account=null) {
     renderAssets(cached_assets_data);
 }
 
-function colour(str, alpha=1) {
+function colour(str) {
     let total = 0;
     for (let i = 0; i < str.length; i ++) {
         total += str.charCodeAt(i);
     }
 
-    return `rgba(${total % 255}, ${(total * 7) % 255}, ${(total * 13) % 255}, ${alpha})`
+    return `rgb(${total % 255}, ${(total * 7) % 255}, ${(total * 13) % 255})`
 }
 
 function zeroish(val) {
@@ -101,202 +92,222 @@ function strAmount(amount, showPlus=false) {
     return `${sign}£${amt}`;
 }
 
-function renderAssetsTags(raw_assets_data) {
-    let canvas = document.createElement('canvas')
-    canvas.id = 'assets_tags';
-    canvas.width = 300;
-    canvas.height = 300;
+function renderAssetsTagsChartAndLegend(raw_assets_data) {
+    let tagsAmounts  = {};
+    let overallTotal = 0;
 
-    let data = {};
     for (let key in raw_assets_data) {
         let asset = raw_assets_data[key];
+        let assetAmount = asset.breakdown.reduce((acc, d) => isHidden(asset, d) ? acc : acc + d.amount, 0);
+        overallTotal += assetAmount;
+
         for (let i = 0; i < asset.breakdown.length; i ++) {
             let account = asset.breakdown[i];
-            let total = account.tags.reduce((acc, t) => acc + t.share, 0);
+            let accountAmount = isHidden(asset, account) ? 0 : account.amount;
+            let totalShare = account.tags.reduce((acc, d) => acc + d.share, 0);
+
             for (let j = 0; j < account.tags.length; j ++) {
                 let tag = account.tags[j];
-                let amount = isHidden(asset, account) ? 0 : account.amount;
-                data[tag.tag] = ((tag.tag in data) ? data[tag.tag] : 0) + amount * (tag.share / total);
+                let tagPortion = tag.share / totalShare;
+
+                if (!(tag.tag in tagsAmounts)) {
+                    tagsAmounts[tag.tag] = 0;
+                }
+
+                tagsAmounts[tag.tag] += accountAmount * tagPortion;
             }
         }
     }
 
-    let keys = Object.keys(data).sort();
-    let total = Object.values(data).reduce((acc, d) => acc + d, 0);
+    let tagsData      = [];
+    let legendEntries = [];
 
-    new Chart(canvas.getContext('2d'), {
-        type: 'bar',
-        data: {
-            datasets: [{
-                data: keys.map(k => 100 * zeroise(data[k]) / total),
-                backgroundColor: keys.map(k => colour(k, 0.2)),
-                borderColor: keys.map(k => colour(k)),
-                borderWidth: 1
-            }],
-            labels: keys
-        },
-        options: {
-            tooltips: { callbacks: { label: hoverCallback(x => `${Math.abs(x).toFixed(0)}%`) } },
-            scales: { yAxes: [{ ticks: { min: 0, max: 100 } }] }
-        }
+    for (let tag in tagsAmounts) {
+        let amount = tagsAmounts[tag];
+
+        if (zeroish(amount)) continue;
+
+        tagsData.push({
+            name: tag,
+            y: amount,
+            color: colour(tag),
+        });
+
+        legendEntries.push({
+            tag: tag,
+            amount: strAmount(amount),
+            percentage: (100 * amount / overallTotal).toFixed(2),
+            colour: colour(tag)
+        });
+    }
+
+    Highcharts.chart('assets_tags_chart_container', {
+        chart: { type: 'pie' },
+        series: [{
+            name: 'Allocation',
+            data: tagsData,
+            size: '80%',
+            tooltip: {
+                pointFormatter: function() {
+                    return `${strAmount(this.y)} (${(100*this.y/overallTotal).toFixed(2)}% of overall allocation)<br/>`;
+                }
+            }
+        }]
     });
 
-    return canvas;
+    document.getElementById('assets_tags_legend_container').removeChild(document.getElementById('assets_tags_legend'));
+    let legend = document.createElement('table');
+    legend.id = 'assets_tags_legend';
+    legend.innerHTML = Mustache.render(
+        TPL_LEGEND_TABLE,
+        { 'entry': legendEntries },
+        { 'show_entry': TPL_PART_SHOW_TAG }
+    );
+    document.getElementById('assets_tags_legend_container').appendChild(legend);
 }
 
 function renderAssetsHistoryChart(raw_assets_data) {
-    let canvas = document.createElement('canvas');
-    canvas.id = 'assets_history';
-    canvas.width = 600;
-    canvas.height = 300;
+    let series  = {};
+    let enabled = {};
 
-    // to avoid duplication of options as these can't be set on the chart...
-    function mkdata(name, history, colourkey) {
-        let last = history[history.length-1];
-        let buffer = [null,null,null,null,last];
-        return {
-            label: name,
-            // some buffer to make the right edge of the chart prettier
-            data: history.concat(buffer),
-            backgroundColor: colour(colourkey, 0.2),
-            borderColor: colour(colourkey),
-            fill: 'origin',
-            spanGaps: true,
-            borderWidth: 1,
-            steppedLine: 'before',
-            pointStyle: 'rect',
-            pointBackgroundColor: colour(colourkey),
-            pointRadius: 0,
-            pointHitRadius: 25
-        };
-    }
-
-    let numdays = 0;
-    let data = [];
     for (let key in raw_assets_data) {
         let asset = raw_assets_data[key];
-        if (show_breakdown && !(asset.breakdown.length == 1 && asset.breakdown[0].name == asset.name)) {
+
+        if(isHidden(asset)) continue;
+
+        if (!(asset.name in series)) {
+            series[asset.name]  = {};
+            enabled[asset.name] = 0;
             for (let i = 0; i < asset.breakdown.length; i ++) {
                 let account = asset.breakdown[i];
-                if (!isHidden(asset, account) && hasHistory(account)) {
-                    numdays = account.history.length;
-                    data.push(mkdata(account.name, account.history, `${asset.name}${account.name}`));
-                }
+                if (isHidden(asset, account)) continue;
+                series[`${asset.name} (${account.name})`] = {};
+                enabled[asset.name] += 1;
             }
-        } else {
-            if(!isHidden(asset) && hasHistory(asset)) {
-                let totalHistory = [];
-                for (let i = 0; i < asset.breakdown.length; i ++) {
-                    for (let j = 0; j < asset.breakdown[i].history.length; j ++) {
-                        if (totalHistory[j] === undefined) {
-                            totalHistory[j] = 0;
-                        }
-                        totalHistory[j] += asset.breakdown[i].history[j];
-                    }
+        }
+
+        for (let i = 0; i < asset.breakdown.length; i ++) {
+            let account = asset.breakdown[i];
+            if (isHidden(asset, account)) continue;
+
+            for (let j = 0; j < account.history.length; j ++) {
+                let entry  = account.history[j];
+                let date   = new Date(entry.date).getTime();
+                let amount = entry.amount;
+
+                if (enabled[asset.name] > 1) {
+                    series[`${asset.name} (${account.name})`][date] = zeroish(amount) ? undefined : amount;
                 }
-                numdays = totalHistory.length;
-                data.push(mkdata(asset.name, totalHistory, asset.name));
-            }
+
+                if(!(date in series[asset.name]) || series[asset.name][date] == undefined) {
+                    series[asset.name][date] = zeroish(amount) ? undefined : amount;
+                } else {
+                    series[asset.name][date] += zeroish(amount) ? 0 : amount;
+                }
+            };
         }
     }
 
-    new Chart(canvas.getContext('2d'), {
-        type: 'line',
-        data: {
-            datasets: data,
-            labels: range(1, 32).map(d => (d > numdays) ? ' ' : d)
+    Highcharts.stockChart('assets_history_chart_container', {
+        chart: { zoomType: 'x' },
+        yAxis: {
+            title: { text: 'Balance (£)' }
         },
-        options: {
-            tooltips: { callbacks: { label: hoverCallback(strAmount) } },
-            scales: { yAxes: [ { ticks: { callback: (v) => `£${v}` } } ] }
-        }
+        series: Object.keys(series).map(key => {
+            return {
+                name: key,
+                data: Object.keys(series[key]).map(date => [parseInt(date), zeroish(series[key][date]) ? undefined : series[key][date]]),
+                color: colour(key),
+                step: true,
+                tooltip: {
+                    pointFormatter: function() {
+                        return zeroish(this.y) ? '' : `<span style="color:${this.series.color}; font-weight: bold">${this.series.name}</span> ${strAmount(this.y)}<br/>`;
+                    }
+                }
+            }
+        })
     });
-
-    return canvas;
 }
 
 function renderAssetsSnapshotChart(raw_assets_data) {
-    let canvas = document.createElement('canvas');
-    canvas.id = 'assets_snapshot';
-    canvas.width = 300;
-    canvas.height = 300;
+    let assetData    = [];
+    let accountData  = [];
+    let assetTotals  = {};
+    let overallTotal = 0;
 
-    let data = {};
     for (let key in raw_assets_data) {
         let asset = raw_assets_data[key];
-        if (show_breakdown && !(asset.breakdown.length == 1 && asset.breakdown[0].name == asset.name)) {
-            for (let i = 0; i < asset.breakdown.length; i ++) {
-                let account = asset.breakdown[i];
-                let amount = isHidden(asset, account) ? 0 : account.amount;
-                if (!zeroish(amount)) {
-                    data[account.name] = {
-                        bgcolour: colour(`${asset.name}${account.name}`, 0.2),
-                        bordercolour: colour(`${asset.name}${account.name}`),
-                        amount: amount
-                    };
-                }
-            }
-        } else {
-            let amount = asset.breakdown.reduce((acc, d) => isHidden(asset, d) ? acc : acc + d.amount, 0);
-            if(!zeroish(amount)) {
-                data[asset.name] = {
-                    bgcolour: colour(asset.name, 0.2),
-                    bordercolour: colour(asset.name),
-                    amount: amount
-                };
-            }
+        let assetAmount = asset.breakdown.reduce((acc, d) => isHidden(asset, d) ? acc : acc + d.amount, 0);
+        overallTotal += assetAmount;
+
+        if(zeroish(assetAmount)) continue;
+
+        assetData.push({
+            name: asset.name,
+            y: assetAmount,
+            color: colour(asset.name)
+        });
+
+        for (let i = 0; i < asset.breakdown.length; i ++) {
+            let account = asset.breakdown[i];
+            let amount = isHidden(asset, account) ? 0 : account.amount;
+
+            if (zeroish(amount)) continue;
+
+            accountData.push({
+                name: account.name,
+                y: amount,
+                color: colour((account.name == asset.name) ? asset.name : `${asset.name} (${account.name})`),
+                asset: {name: asset.name, amount: assetAmount}
+            });
         }
     }
 
-    let keys = Object.keys(data);
-    let total = Object.values(data).reduce((acc, d) => acc + d.amount, 0);
-
-    new Chart(canvas.getContext('2d'), {
-        type: 'doughnut',
-        data: {
-            datasets: [{
-                data: keys.map(k => zeroise(data[k].amount)),
-                backgroundColor: keys.map(k => data[k].bgcolour),
-                borderColor: keys.map(k => data[k].bordercolour),
-                borderWidth: 1
-            }],
-            labels: keys
-        },
-        options: {
-            animation: { animateScale: true },
-            tooltips: { callbacks: { label: hoverCallback(strAmount) } },
-            elements: {
-                center: {
-                    text: `${strAmount(total)}`,
-                    color: '#36A2EB',
-                    fontStyle: 'CallunaSansRegular',
+    Highcharts.chart('assets_balances_chart_container', {
+        chart: { type: 'pie' },
+        series: [{
+            name: 'Accounts',
+            data: assetData,
+            size: '60%',
+            tooltip: {
+                pointFormatter: function() {
+                    return `${strAmount(this.y)} (${(100*this.y/overallTotal).toFixed(2)}% of overall portfolio)<br/>`;
                 }
             }
-        }
+        }, {
+            name: 'Breakdown',
+            data: accountData,
+            size: '80%',
+            innerSize: '60%',
+            id: 'versions',
+            tooltip: {
+                pointFormatter: function() {
+                    return `${strAmount(this.y)} (${(100*this.y/this.asset.amount).toFixed(2)}% of ${this.asset.name})<br/>`;
+                }
+            }
+        }]
     });
-
-    return canvas;
 }
 
-function renderAssetsLegend(raw_assets_data, show_with_history=false) {
+function renderAssetsBalancesLegend(raw_assets_data) {
     let overalltotal = raw_assets_data.reduce((acc, ass) => acc + ass.breakdown.reduce((acc2, d) => acc2 + d.amount, 0), 0);
 
-    let accounts = [];
+    let entries = [];
     for (let key in raw_assets_data) {
         let asset = raw_assets_data[key];
         let total = asset.breakdown.reduce((acc, d) => acc + d.amount, 0)
 
-        let subaccounts = [];
+        let subentries = [];
         for (let i = 0; i < asset.breakdown.length; i ++) {
             let account = asset.breakdown[i];
 
-            if (zeroish(account.amount) && !(hasHistory(account) && show_with_history)) continue;
+            if (zeroish(account.amount)) continue;
 
-            subaccounts.push({
+            subentries.push({
                 'name': account.name,
                 'url': account.url,
                 'colour': colour(asset.name),
-                'subcolour': colour(`${asset.name}${account.name}`),
+                'subcolour': colour(`${asset.name} (${account.name})`),
                 'amount': strAmount(account.amount),
                 'percentage': Math.abs(100 * account.amount / total).toFixed(0),
                 'hidden': isHidden(asset, account),
@@ -304,14 +315,14 @@ function renderAssetsLegend(raw_assets_data, show_with_history=false) {
             });
         }
 
-        if (!zeroish(total) || (hasHistory(asset) && show_with_history)) {
-            accounts.push({
+        if (!zeroish(total)) {
+            entries.push({
                 'asset': asset.name,
                 'url': asset.url,
                 'colour': colour(asset.name),
                 'amount': strAmount(total),
                 'percentage': Math.abs(100 * total / overalltotal).toFixed(0),
-                'subaccount': (subaccounts.length == 1 && subaccounts[0].name == asset.name) ? [] : subaccounts,
+                'subentry': (subentries.length == 1 && subentries[0].name == asset.name) ? [] : subentries,
                 'hidden': isHidden(asset),
                 'onclick': `toggleHide(${JSON.stringify(asset)})`
             });
@@ -319,47 +330,35 @@ function renderAssetsLegend(raw_assets_data, show_with_history=false) {
     }
 
     let legend = document.createElement('table');
-    legend.id = 'assets_legend';
+    legend.id = 'assets_balances_legend';
     legend.innerHTML = Mustache.render(
-        TPL_ASSETS_LEGEND_TABLE,
-        { 'account': accounts },
-        { 'show_account': TPL_PART_SHOW_ACCOUNT }
+        TPL_LEGEND_TABLE,
+        { 'entry': entries },
+        { 'show_entry': TPL_PART_SHOW_ACCOUNT }
     );
     return legend;
 }
 
-function renderAssets(raw_assets_data, redrawTags=true, redrawLegend=true) {
+function renderAssets(raw_assets_data) {
     cached_assets_data = raw_assets_data;
 
     // tags
-    if (redrawTags) {
-        document.getElementById('assets_tags_container').removeChild(document.getElementById('assets_tags'));
-        document.getElementById('assets_tags_container').appendChild(renderAssetsTags(raw_assets_data));
-    }
+    renderAssetsTagsChartAndLegend(raw_assets_data);
 
-    // chart
-    document.getElementById('assets_history_container').style.display  = show_history ? 'block' : 'none';
-    document.getElementById('assets_tags_container').style.display     = show_history ? 'none'  : 'block';
-    document.getElementById('assets_snapshot_container').style.display = show_history ? 'none'  : 'block';
+    // balances or history chart
+    document.getElementById('assets_tags_legend_container').style.display    = show_history ? 'none'  : 'flex';
+    document.getElementById('assets_tags_chart_container').style.display     = show_history ? 'none'  : 'block';
+    document.getElementById('assets_balances_chart_container').style.display = show_history ? 'none'  : 'block';
+    document.getElementById('assets_history_chart_container').style.display  = show_history ? 'block' : 'none';
 
     if (show_history) {
-        document.getElementById('assets_history_container').removeChild(document.getElementById('assets_history'));
-        document.getElementById('assets_history_container').appendChild(renderAssetsHistoryChart(raw_assets_data));
+        renderAssetsHistoryChart(raw_assets_data);
     } else {
-        document.getElementById('assets_snapshot_container').removeChild(document.getElementById('assets_snapshot'));
-        document.getElementById('assets_snapshot_container').appendChild(renderAssetsSnapshotChart(raw_assets_data));
+        renderAssetsSnapshotChart(raw_assets_data);
     }
 
-    document.getElementById(show_history ? 'assets_history' : 'assets_snapshot').onclick = function() {
-        show_breakdown = !show_breakdown;
-        renderAssets(raw_assets_data, false, false);
-    };
-
-    // legend
-    if (redrawLegend) {
-        document.getElementById('assets_legend_container').removeChild(document.getElementById('assets_legend'));
-        document.getElementById('assets_legend_container').appendChild(renderAssetsLegend(raw_assets_data, show_history));
-    }
+    document.getElementById('assets_balances_legend_container').removeChild(document.getElementById('assets_balances_legend'));
+    document.getElementById('assets_balances_legend_container').appendChild(renderAssetsBalancesLegend(raw_assets_data));
 }
 
 function renderTable(raw_data, ele, flipGoodBad=false) {
@@ -474,48 +473,23 @@ function renderFinances(month, data) {
 }
 
 window.onload = () => {
-    Chart.defaults.global.responsive = false;
-    Chart.defaults.global.maintainAspectRatio = true;
-    Chart.defaults.global.legend.display = false;
-
-    Chart.pluginService.register({
-        beforeDraw: function (chart) {
-            if (chart.config.options.elements.center) {
-                //Get ctx from string
-                var ctx = chart.chart.ctx;
-
-                //Get options from the center object in options
-                var centerConfig = chart.config.options.elements.center;
-                var fontStyle = centerConfig.fontStyle || 'Arial';
-                var txt = centerConfig.text;
-                var color = centerConfig.color || '#000';
-                var sidePadding = centerConfig.sidePadding || 20;
-                var sidePaddingCalculated = (sidePadding/100) * (chart.innerRadius * 2)
-                //Start with a base font of 30px
-                ctx.font = "30px " + fontStyle;
-
-                //Get the width of the string and also the width of the element minus 10 to give it 5px side padding
-                var stringWidth = ctx.measureText(txt).width;
-                var elementWidth = (chart.innerRadius * 2) - sidePaddingCalculated;
-
-                // Find out how much the font can grow in width.
-                var widthRatio = elementWidth / stringWidth;
-                var newFontSize = Math.floor(30 * widthRatio);
-                var elementHeight = (chart.innerRadius * 2);
-
-                // Pick a new font size so it will not be larger than the height of label.
-                var fontSizeToUse = Math.min(newFontSize, elementHeight);
-
-                //Set font settings to draw it correctly.
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                var centerX = ((chart.chartArea.left + chart.chartArea.right) / 2);
-                var centerY = ((chart.chartArea.top + chart.chartArea.bottom) / 2);
-                ctx.font = fontSizeToUse+"px " + fontStyle;
-                ctx.fillStyle = color;
-
-                //Draw text in center
-                ctx.fillText(txt, centerX, centerY);
+    // Default options for charts
+    Highcharts.setOptions({
+        chart:    { backgroundColor: null },
+        title:    { text: '' },
+        subTitle: { text: '' },
+        credits:  { enabled: false },
+        plotOptions: {
+            pie: {
+                borderWidth: 2,
+                shadow: false,
+                center: ['50%', '50%'],
+                tooltip: {
+                    headerFormat: '<span style="color:{point.color}; font-weight: bold">{point.key}</span><br/>'
+                }
+            },
+            series: {
+                dataLabels: { enabled: false }
             }
         }
     });
@@ -531,12 +505,9 @@ window.onload = () => {
             renderFinancesForNextMonth();
         } else if (e.key == 'r') {
             renderFinancesFor(visible_month);
-        } else if (e.key == 'b') {
-            show_breakdown = !show_breakdown;
-            renderAssets(cached_assets_data, false, false);
         } else if (e.key == 'h') {
             show_history = !show_history;
-            renderAssets(cached_assets_data, false, true);
+            renderAssets(cached_assets_data);
         }
     }
 };
@@ -546,18 +517,30 @@ window.onload = () => {
  * TEMPLATES
  *****************************************************************************/
 
-// The assets legend table.
-const TPL_ASSETS_LEGEND_TABLE = `
-{{#account}}
-  {{>show_account}}
-  {{#subaccount}}
-    {{>show_account}}
-  {{/subaccount}}
-{{/account}}
+// The legend tables.
+const TPL_LEGEND_TABLE = `
+{{#entry}}
+  {{>show_entry}}
+  {{#subentry}}
+    {{>show_entry}}
+  {{/subentry}}
+{{/entry}}
 `;
 
-// Partial for displaying a single account.  Used in
-// TPL_ASSETS_LEGEND_TABLE.
+// Partial for displaying a single tag in the tags legend.
+const TPL_PART_SHOW_TAG = `
+<tr>
+  <td class="left">
+    <span title="{{percentage}}% of overall allocation">{{amount}}</span>
+  </td>
+  <td class="right">{{tag}}</td>
+  <td class="colour" style="background-color: {{colour}}">
+    <span></span>
+  </td>
+</tr>
+`;
+
+// Partial for displaying a single account in the balances legend.
 const TPL_PART_SHOW_ACCOUNT = `
 <tr class="{{#name}}sub{{/name}} {{#hidden}}hidden{{/hidden}}">
   <td class="colour" style="background-color: {{colour}}">
@@ -578,7 +561,7 @@ const TPL_PART_SHOW_ACCOUNT = `
       <a class="note" href="{{url}}" title="More information...">(?)</a>
     {{/url}}
   </td>
-  <td class="num">
+  <td class="right">
     {{^name}}
       <span title="{{percentage}}% of overall portfolio">{{amount}}</span>
     {{/name}}{{#name}}
@@ -594,7 +577,7 @@ const TPL_SUMMARY_TABLE = `
   <tr>
     <th>{{source}}</th>
     <td class="{{#good}}good{{/good}}{{^good}}bad{{/good}}">{{delta}}</td>
-    <td>{{amount}}</td>
+    <td class="right">{{amount}}</td>
   </tr>
 {{/entry}}
 `;

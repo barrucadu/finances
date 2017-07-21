@@ -28,7 +28,8 @@ static files from:
 
 ```bash
 mkdir -p ../backend/static/vendor
-cp node_modules/chart.js/dist/Chart.min.js ../backend/static/vendor/
-cp node_modules/mustache/mustache.min.js   ../backend/static/vendor/
+cp node_modules/highcharts/highcharts.js    ../backend/static/vendor/highcharts.min.js
+cp node_modules/highcharts/modules/stock.js ../backend/static/vendor/highstock.min.js
+cp node_modules/mustache/mustache.min.js    ../backend/static/vendor/mustache.min.js
 cp src/* ../backend/static/
 ```

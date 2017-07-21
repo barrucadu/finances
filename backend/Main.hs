@@ -85,7 +85,10 @@ dataFor cfg today txns = A.toJSON Report
               , srAmount  = amountOn today
               , srTags    = subTag subacc
               , srURL     = subURL subacc
-              , srHistory = [ amountOn (C.fromGregorian y m d) | d <- [1..C.gregorianMonthLength y m] ]
+              , srHistory = [ (day, amountOn day)
+                            | d <- [1..C.gregorianMonthLength y m]
+                            , let day = C.fromGregorian y m d
+                            ]
               }
             | let (y, m, _) = C.toGregorian today
             , subacc <- accBreakdown acc
