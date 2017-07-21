@@ -1,5 +1,5 @@
 executables:
-  webui:
+  backend:
     main: Main.hs
     other-modules:
       - Config
