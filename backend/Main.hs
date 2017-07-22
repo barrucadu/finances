@@ -71,47 +71,45 @@ financeDataFor cfg today =
 dataFor :: Config -> C.Day -> [H.Transaction] -> A.Value
 dataFor cfg today txns = A.toJSON Report
     { rpWhen        = today
-    , rpAssets      = accountsReport (assetAccounts     cfg) id
-    , rpLiabilities = accountsReport (liabilityAccounts cfg) negate
-    , rpIncome      = balanceFrom monthStart    (account (incomeRules  cfg)) negate
-    , rpBudget      = balanceFrom (const epoch) (account (budgetRules  cfg)) id
-    , rpExpenses    = balanceFrom monthStart    (account (expenseRules cfg)) id
-    , rpEquity      = simpleReport (account (equityRules cfg)) abs
+    , rpAssets      = accountsReport (assetAccounts     cfg) (const "Current")
+    , rpLiabilities = accountsReport (liabilityAccounts cfg) id
+    , rpIncome      = balanceFrom monthStart    (account (incomeRules  cfg))
+    , rpBudget      = balanceFrom (const epoch) (account (budgetRules  cfg))
+    , rpExpenses    = balanceFrom monthStart    (account (expenseRules cfg))
+    , rpEquity      = simpleReport (account (equityRules cfg))
     , rpHistory     = history
     }
   where
-    accountsReport accounts valf =
+    accountsReport accounts =
       [ AccountReport
         { arName      = accName acc
         , arBreakdown =
             [ SubaccountReport
               { srName    = fromMaybe (accName acc) (subName subacc)
-              , srAmount  = valf amount
+              , srAmount  = amount
               , srTags    = subTag subacc
               , srURL     = subURL subacc
-              , srHistory = HistoryReport (map (second valf) hr)
+              , srHistory = allHistory (subHledgerAccount subacc)
               }
             | subacc <- accBreakdown acc
             , let amount = M.findWithDefault 0 (subHledgerAccount subacc) (getBalances uptonow)
-            , let HistoryReport hr = allHistory (subHledgerAccount subacc)
             ]
         }
       | acc <- accounts
       ]
 
-    balanceFrom whenf accf valf =
-      [ (account, DeltaReport { drCurrent = valf amount, drPrior = valf old, drHistory = HistoryReport (map (second valf) hr) })
+    balanceFrom whenf accf =
+      [ (account, DeltaReport { drCurrent = amount, drPrior = old, drHistory = allHistory acc })
       | let currentBals = M.unionWith (-) (getBalances uptonow)   (balancesAt (whenf today)     uptonow)
       , let priorBals   = M.unionWith (-) (getBalances uptoprior) (balancesAt (whenf lastmonth) uptoprior)
       , acc <- M.keys (getBalances balances)
       , let amount = M.findWithDefault 0 acc currentBals
       , account <- maybeToList (accf acc)
       , let old = M.findWithDefault 0 acc priorBals
-      , let HistoryReport hr = allHistory acc
       ]
 
-    simpleReport accf valf =
-      [ (account, valf amount)
+    simpleReport accf =
+      [ (account, amount)
       | let currentBals = getBalances uptonow
       , (acc, amount) <- M.assocs currentBals
       , account <- maybeToList (accf acc)

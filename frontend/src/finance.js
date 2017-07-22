@@ -287,8 +287,9 @@ function renderAssetsCashflowChart(income_data, expense_data) {
             let last   = 0;
             for (let j = 0; j < data.history.length; j ++) {
                 let m = new Date(Date.parse(data.history[j].date)).getMonth();
-                out[m] += data.history[j].amount - last;
-                last = data.history[j].amount;
+                let amount = Math.abs(data.history[j].amount);
+                out[m] += amount - last;
+                last = amount;
             }
         }
         return out;
@@ -483,12 +484,12 @@ function renderTable(raw_data, ele, flipGoodBad=false) {
         let source = sources[i];
         let data   = raw_data[source];
 
-        if (data.amount < 0.01) continue;
+        if (zeroish(data.amount)) continue;
 
         entries.push({
             'source': source,
             'good':   (data.delta > 0) ? !flipGoodBad : flipGoodBad,
-            'delta':  (data.delta >= 0.01) ? strAmount(data.delta, true) : '',
+            'delta':  !zeroish(data.delta) ? strAmount(data.delta, true) : '',
             'amount': strAmount(data.amount)
         });
     }
@@ -497,7 +498,7 @@ function renderTable(raw_data, ele, flipGoodBad=false) {
 }
 
 function renderIncome(raw_income_data) {
-    renderTable(raw_income_data, document.getElementById('income_table'));
+    renderTable(raw_income_data, document.getElementById('income_table'), true);
 }
 
 function renderBudget(raw_budget_data) {
