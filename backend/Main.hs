@@ -82,17 +82,13 @@ dataFor cfg today txns = A.toJSON Report
         , arBreakdown =
             [ SubaccountReport
               { srName    = fromMaybe (accName acc) (subName subacc)
-              , srAmount  = amountOn today
+              , srAmount  = amountIn (getBalances uptonow)
               , srTags    = subTag subacc
               , srURL     = subURL subacc
-              , srHistory = [ (day, amountOn day)
-                            | d <- [1..C.gregorianMonthLength y m]
-                            , let day = C.fromGregorian y m d
-                            ]
+              , srHistory = [ (day, amountIn bals) | (day, bals, _) <- balancesAsc ]
               }
-            | let (y, m, _) = C.toGregorian today
-            , subacc <- accBreakdown acc
-            , let amountOn day = M.findWithDefault 0 (subHledgerAccount subacc) (balancesAt day balances)
+            | subacc <- accBreakdown acc
+            , let amountIn = M.findWithDefault 0 (subHledgerAccount subacc)
             ]
         }
       | acc <- assetAccounts cfg
@@ -118,7 +114,8 @@ dataFor cfg today txns = A.toJSON Report
     balancesAt cutoff = getBalances . dropWhile (\(d,_,_) -> d > cutoff)
     getBalances = (\(_,bals,_) -> bals) . headOr initial
 
-    balances  = reverse (dailyBalances txns)
+    balancesAsc = dailyBalances txns
+    balances  = reverse balancesAsc
     uptonow   = dropWhile (\(d,_,_) -> d > today)     balances
     uptoprior = dropWhile (\(d,_,_) -> d > lastmonth) uptonow
     lastmonth = C.addGregorianMonthsClip (-1) today

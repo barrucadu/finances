@@ -1,9 +1,13 @@
+const THIS_YEAR  = new Date().getYear() + 1900;
 const THIS_MONTH = new Date().getMonth() + 1;
+const A_MONTH_AND_A_HALF_FROM_NOW =
+      (THIS_MONTH < 12) ? new Date(THIS_YEAR, THIS_MONTH, 15) : new Date(THIS_YEAR, 12, 31);
 
 var visible_month = 0;
 var cached_assets_data = undefined;
 var show_history = false;
 var hidden_accounts = {};
+var history_chart_axes = undefined;
 
 function hoverCallback(f) {
     return function (tooltipItem, data) {
@@ -169,22 +173,44 @@ function renderAssetsTagsChartAndLegend(raw_assets_data) {
 }
 
 function renderAssetsHistoryChart(raw_assets_data) {
-    let series  = {};
-    let enabled = {};
+    let keys   = Object.keys(raw_assets_data).filter(k => !isHidden(raw_assets_data[k]));
+    let axes   = [];
+    let gap    = 5;
+    let height = 100 * 1 / keys.length - gap;
+    let series = {};
 
-    for (let key in raw_assets_data) {
-        let asset = raw_assets_data[key];
+    for (let i = 0; i < keys.length; i ++) {
+        let asset = raw_assets_data[keys[i]];
 
         if(isHidden(asset)) continue;
 
+        axes.push({
+            height: `${height}%`,
+            top: `${(height + gap) * i}%`,
+            offset: 0,
+            min: 0
+        });
+
         if (!(asset.name in series)) {
-            series[asset.name]  = {};
-            enabled[asset.name] = 0;
-            for (let i = 0; i < asset.breakdown.length; i ++) {
-                let account = asset.breakdown[i];
+            for (let j = 0; j < asset.breakdown.length; j ++) {
+                let account = asset.breakdown[j];
                 if (isHidden(asset, account)) continue;
-                series[`${asset.name} (${account.name})`] = {};
-                enabled[asset.name] += 1;
+                series[`${asset.name} (${account.name})`] = {
+                    asset: asset,
+                    account: account,
+                    colour: colour(`${asset.name} (${account.name})`),
+                    data: [],
+                    yAxis: axes.length-1
+                };
+            }
+            if (asset.breakdown.length == 1 && asset.name == asset.breakdown[0].name) {
+                series[asset.name] = {
+                    asset: asset,
+                    account: undefined,
+                    colour: colour(asset.name),
+                    data: {},
+                    yAxis: axes.length-1
+                };
             }
         }
 
@@ -197,38 +223,61 @@ function renderAssetsHistoryChart(raw_assets_data) {
                 let date   = new Date(entry.date).getTime();
                 let amount = entry.amount;
 
-                if (enabled[asset.name] > 1) {
-                    series[`${asset.name} (${account.name})`][date] = zeroish(amount) ? undefined : amount;
-                }
-
-                if(!(date in series[asset.name]) || series[asset.name][date] == undefined) {
-                    series[asset.name][date] = zeroish(amount) ? undefined : amount;
+                if (asset.breakdown.length == 1 && asset.name == asset.breakdown[0].name) {
+                    series[asset.name].data[date] = zeroish(amount) ? undefined : amount;
                 } else {
-                    series[asset.name][date] += zeroish(amount) ? 0 : amount;
+                    series[`${asset.name} (${account.name})`].data[date] = zeroish(amount) ? undefined : amount;
                 }
-            };
+            }
         }
     }
 
-    Highcharts.stockChart('assets_history_chart_container', {
+    let chart = Highcharts.stockChart('assets_history_chart_container', {
         chart: { zoomType: 'x' },
-        yAxis: {
-            title: { text: 'Balance (£)' }
-        },
-        series: Object.keys(series).map(key => {
-            return {
-                name: key,
-                data: Object.keys(series[key]).map(date => [parseInt(date), zeroish(series[key][date]) ? undefined : series[key][date]]),
-                color: colour(key),
-                step: true,
-                tooltip: {
-                    pointFormatter: function() {
-                        return zeroish(this.y) ? '' : `<span style="color:${this.series.color}; font-weight: bold">${this.series.name}</span> ${strAmount(this.y)}<br/>`;
-                    }
+        xAxis: { max: A_MONTH_AND_A_HALF_FROM_NOW.getTime() },
+        yAxis: axes,
+        rangeSelector: { selected: 1 },
+        series: Object.keys(series).map(function(key) {
+            // convert a datum to a point
+            function toPoint(date) {
+                return {
+                    x: parseInt(date),
+                    y: zeroish(series[key].data[date]) ? undefined : series[key].data[date],
+                    asset: series[key].asset,
+                    account: series[key].account
+                };
+            }
+
+            // format a point for a tooltip
+            function pointFormatter() {
+                if (zeroish(this.y)) return '';
+
+                let key = `<span style="color:${colour(this.asset.name)};font-weight:bold">${this.asset.name}</span>`;
+                if (this.account != undefined) {
+                    let c = colour(`${this.asset.name} (${this.account.name})`);
+                    key = `${key} <span style="color:${c};font-weight:bold"> (${this.account.name})</span>`;
                 }
+
+                return `${key} ${strAmount(this.y)}<br/>`;
+            }
+
+            return {
+                type: 'spline',
+                name: key,
+                data: Object.keys(series[key].data).map(toPoint),
+                color: series[key].colour,
+                tooltip: { pointFormatter: pointFormatter },
+                yAxis: series[key].yAxis
             }
         })
     });
+
+    // restore the old X positioning
+    if (history_chart_axes != undefined) {
+        chart.xAxis[0].setExtremes(history_chart_axes.userMin, history_chart_axes.userMax);
+        chart.showResetZoom();
+    }
+    history_chart_axes = chart.xAxis[0];
 }
 
 function renderAssetsSnapshotChart(raw_assets_data) {
@@ -291,7 +340,7 @@ function renderAssetsSnapshotChart(raw_assets_data) {
     });
 }
 
-function renderAssetsBalancesLegend(raw_assets_data) {
+function renderAssetsBalancesLegend(raw_assets_data, show_all=false) {
     let overalltotal = raw_assets_data.reduce((acc, ass) => acc + ass.breakdown.reduce((acc2, d) => acc2 + d.amount, 0), 0);
 
     let entries = [];
@@ -303,7 +352,7 @@ function renderAssetsBalancesLegend(raw_assets_data) {
         for (let i = 0; i < asset.breakdown.length; i ++) {
             let account = asset.breakdown[i];
 
-            if (zeroish(account.amount)) continue;
+            if (zeroish(account.amount) && !show_all) continue;
 
             subentries.push({
                 'name': account.name,
@@ -317,7 +366,7 @@ function renderAssetsBalancesLegend(raw_assets_data) {
             });
         }
 
-        if (!zeroish(total)) {
+        if (!zeroish(total) || show_all) {
             entries.push({
                 'asset': asset.name,
                 'url': asset.url,
@@ -360,7 +409,7 @@ function renderAssets(raw_assets_data) {
     }
 
     document.getElementById('assets_balances_legend_container').removeChild(document.getElementById('assets_balances_legend'));
-    document.getElementById('assets_balances_legend_container').appendChild(renderAssetsBalancesLegend(raw_assets_data));
+    document.getElementById('assets_balances_legend_container').appendChild(renderAssetsBalancesLegend(raw_assets_data, show_history));
 }
 
 function renderTable(raw_data, ele, flipGoodBad=false) {
