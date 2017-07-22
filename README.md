@@ -41,9 +41,10 @@ Usage
 
 - `left`:  go to prior month (if not January)
 - `right`: go to next month (if not December)
-- `r`:     re-draw charts
-- `h`:     toggle historical balance chart
-- `c`:     toggle monthly cashflow chart
+- `r`: re-draw charts
+- `s`: show asset summary
+- `h`: show historical balances
+- `c`: show monthly cashflow
 
 ### Clicky Things
 
