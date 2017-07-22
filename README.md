@@ -32,3 +32,18 @@ cp node_modules/highcharts/modules/stock.js ../web/vendor/highstock.min.js
 cp node_modules/mustache/mustache.min.js    ../web/vendor/mustache.min.js
 cp src/* ../web/
 ```
+
+
+Usage
+-----
+
+### Keybindings
+
+- `left`:  go to prior month (if not January)
+- `right`: go to next month (if not December)
+- `r`:     re-draw charts
+- `h`:     toggle history chart
+
+### Clicky Things
+
+- Account names in the assets legend
