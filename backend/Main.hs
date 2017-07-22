@@ -99,15 +99,18 @@ dataFor cfg today txns = A.toJSON Report
       | acc <- accounts
       ]
 
-    balanceFrom whenf accf =
-      [ (account, DeltaReport { drCurrent = amount, drPrior = old, drHistory = allHistory acc })
-      | let currentBals = M.unionWith (-) (getBalances uptonow)   (balancesAt (whenf today)     uptonow)
-      , let priorBals   = M.unionWith (-) (getBalances uptoprior) (balancesAt (whenf lastmonth) uptoprior)
-      , acc <- M.keys (getBalances balances)
-      , let amount = M.findWithDefault 0 acc currentBals
-      , account <- maybeToList (accf acc)
-      , let old = M.findWithDefault 0 acc priorBals
-      ]
+    balanceFrom whenf accf = BasicReport
+      { brAccounts =
+          [ (account, DeltaReport { drCurrent = amount, drPrior = old, drHistory = allHistory acc })
+          | let currentBals = M.unionWith (-) (getBalances uptonow)   (balancesAt (whenf today)     uptonow)
+          , let priorBals   = M.unionWith (-) (getBalances uptoprior) (balancesAt (whenf lastmonth) uptoprior)
+          , acc <- M.keys (getBalances balances)
+          , let amount = M.findWithDefault 0 acc currentBals
+          , account <- maybeToList (accf acc)
+          , let old = M.findWithDefault 0 acc priorBals
+          ]
+      , brPriorDate = lastmonth
+      }
 
     simpleReport accf =
       [ (account, amount)

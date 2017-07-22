@@ -13,9 +13,9 @@ data Report = Report
   { rpWhen :: C.Day
   , rpAssets :: [AccountReport]
   , rpLiabilities :: [AccountReport]
-  , rpIncome :: [(T.Text, DeltaReport)]
-  , rpBudget :: [(T.Text, DeltaReport)]
-  , rpExpenses :: [(T.Text, DeltaReport)]
+  , rpIncome :: BasicReport
+  , rpBudget :: BasicReport
+  , rpExpenses :: BasicReport
   , rpEquity :: [(T.Text, Rational)]
   , rpHistory :: [(C.Day, [TransactionReport])]
   } deriving Show
@@ -26,9 +26,9 @@ instance A.ToJSON Report where
     , "date"        A..= T.pack (C.formatTime C.defaultTimeLocale "%F" (rpWhen rp))
     , "assets"      A..= A.toJSON (rpAssets      rp)
     , "liabilities" A..= A.toJSON (rpLiabilities rp)
-    , "income"      A..= A.object [ name A..= A.toJSON dr | (name, dr) <- rpIncome   rp ]
-    , "budget"      A..= A.object [ name A..= A.toJSON dr | (name, dr) <- rpBudget   rp ]
-    , "expenses"    A..= A.object [ name A..= A.toJSON dr | (name, dr) <- rpExpenses rp ]
+    , "income"      A..= A.toJSON (rpIncome      rp)
+    , "budget"      A..= A.toJSON (rpBudget      rp)
+    , "expenses"    A..= A.toJSON (rpExpenses    rp)
     , "equity"      A..= A.object [ name A..= A.toJSON (toDouble bal) | (name, bal) <- rpEquity rp ]
     , "history"     A..= A.object
       [ date A..= A.toJSON txns
@@ -80,6 +80,18 @@ instance A.ToJSON HistoryReport where
     [ A.object [ "date" A..= date, "amount" A..= toDouble amount ]
     | (day, amount) <- hrValues hr
     , let date = C.formatTime C.defaultTimeLocale "%F" day
+    ]
+
+-- | A much simpler report than a full 'AccountReport'.
+data BasicReport = BasicReport
+  { brAccounts :: [(T.Text, DeltaReport)]
+  , brPriorDate :: C.Day
+  } deriving Show
+
+instance A.ToJSON BasicReport where
+  toJSON br = A.object
+    [ "accounts"   A..= A.object [ name A..= A.toJSON dr | (name, dr) <- brAccounts br ]
+    , "prior_date" A..= T.pack (C.formatTime C.defaultTimeLocale "%F" (brPriorDate br))
     ]
 
 -- | A report about the current and prior states of an account

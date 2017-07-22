@@ -280,10 +280,10 @@ function renderAssetsHistoricalChart(raw_assets_data) {
 function renderCashflowChart(income_data, expense_data) {
     function gather(raw_data) {
         let out     = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-        let sources = Object.keys(raw_data);
+        let sources = Object.keys(raw_data.accounts);
         for (let i = 0; i < sources.length; i ++) {
             let source = sources[i];
-            let data   = raw_data[source];
+            let data   = raw_data.accounts[source];
             let last   = 0;
             for (let j = 0; j < data.history.length; j ++) {
                 let m = new Date(Date.parse(data.history[j].date)).getMonth();
@@ -462,8 +462,8 @@ function renderBalanceSheet(date, raw_assets_data, raw_equity_data, raw_expenses
     let assets_data      = gatherFromAccountReport(raw_assets_data);
     let liabilities_data = gatherFromAccountReport(raw_liabilities_data);
 
-    let expenses_data = gatherFromDeltaReport(raw_expenses_data);
-    let income_data   = gatherFromDeltaReport(raw_income_data);
+    let expenses_data = gatherFromDeltaReport(raw_expenses_data.accounts);
+    let income_data   = gatherFromDeltaReport(raw_income_data.accounts);
 
     let equity_data = [];
     let keys = Object.keys(raw_equity_data).sort();
@@ -575,14 +575,14 @@ function renderCharts(data) {
     }
 }
 
-function renderTable(raw_data, ele, flipGoodBad=false) {
+function renderTable(raw_data, name, flipGoodBad=false) {
     let entries = [];
-    let sources = Object.keys(raw_data).sort();
+    let sources = Object.keys(raw_data.accounts).sort();
     let totalAmount = 0;
     let totalDelta  = 0;
     for (let i = 0; i < sources.length; i ++) {
         let source = sources[i];
-        let data   = raw_data[source];
+        let data   = raw_data.accounts[source];
 
         if (zeroish(data.amount)) continue;
 
@@ -596,7 +596,7 @@ function renderTable(raw_data, ele, flipGoodBad=false) {
         totalDelta += data.delta;
     }
 
-    ele.innerHTML = Mustache.render(TPL_SUMMARY_TABLE, {
+    document.getElementById(`cur_${name}_table`).innerHTML = Mustache.render(TPL_SUMMARY_TABLE, {
         entry: entries,
         foot: {
             good:   (totalDelta > 0) ? !flipGoodBad : flipGoodBad,
@@ -604,18 +604,19 @@ function renderTable(raw_data, ele, flipGoodBad=false) {
             amount: strAmount(totalAmount)
         }
     });
+    document.getElementById(`cur_${name}_prior_date`).innerText = raw_data.prior_date;
 }
 
 function renderIncome(raw_income_data) {
-    renderTable(raw_income_data, document.getElementById('cur_income_table'), true);
+    renderTable(raw_income_data, 'income', true);
 }
 
 function renderBudget(raw_budget_data) {
-    renderTable(raw_budget_data, document.getElementById('cur_budget_table'));
+    renderTable(raw_budget_data, 'budget');
 }
 
 function renderExpenses(raw_expenses_data) {
-    renderTable(raw_expenses_data, document.getElementById('cur_expenses_table'), true);
+    renderTable(raw_expenses_data, 'expenses', true);
 }
 
 function renderHistory(raw_history_data) {
