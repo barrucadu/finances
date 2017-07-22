@@ -1,5 +1,5 @@
 body {
-    margin: 1.5em 3em;
+    margin: 1em 3em 0 3em;
     font-family: CallunaSansRegular;
     font-size: 14px;
     background-color: #fffaf0;
@@ -17,6 +17,8 @@ h1 {
 
 h2 {
     font-size: 1.6em;
+    margin-bottom: 0.7rem;
+    padding-bottom: 0;
 }
 
 h1 span {
@@ -32,7 +34,7 @@ canvas {
 }
 
 table {
-    font-size: 1.1rem;
+    font-size: 1rem;
     border-collapse: collapse;
 }
 
@@ -82,7 +84,7 @@ th {
 tfoot {
     background-color: #f8f3e9;
     font-style: italic;
-    font-size: 0.9rem;
+    font-size: 0.8rem;
 }
 
 p.emphasis {
