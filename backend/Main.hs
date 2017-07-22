@@ -70,29 +70,32 @@ financeDataFor cfg today =
 -- | Get the data for a specific day.
 dataFor :: Config -> C.Day -> [H.Transaction] -> A.Value
 dataFor cfg today txns = A.toJSON Report
-    { rpWhen     = today
-    , rpAssets   = assets
-    , rpIncome   = balanceFrom monthStart    (account (incomeRules  cfg)) negate
-    , rpBudget   = balanceFrom (const epoch) (account (budgetRules  cfg)) id
-    , rpExpenses = balanceFrom monthStart    (account (expenseRules cfg)) id
-    , rpHistory  = history
+    { rpWhen        = today
+    , rpAssets      = accountsReport (assetAccounts     cfg) id
+    , rpLiabilities = accountsReport (liabilityAccounts cfg) negate
+    , rpIncome      = balanceFrom monthStart    (account (incomeRules  cfg)) negate
+    , rpBudget      = balanceFrom (const epoch) (account (budgetRules  cfg)) id
+    , rpExpenses    = balanceFrom monthStart    (account (expenseRules cfg)) id
+    , rpHistory     = history
     }
   where
-    assets =
+    accountsReport accounts valf =
       [ AccountReport
         { arName      = accName acc
         , arBreakdown =
             [ SubaccountReport
               { srName    = fromMaybe (accName acc) (subName subacc)
-              , srAmount  = M.findWithDefault 0 (subHledgerAccount subacc) (getBalances uptonow)
+              , srAmount  = valf amount
               , srTags    = subTag subacc
               , srURL     = subURL subacc
-              , srHistory = allHistory (subHledgerAccount subacc)
+              , srHistory = HistoryReport (map (second valf) hr)
               }
             | subacc <- accBreakdown acc
+            , let amount = M.findWithDefault 0 (subHledgerAccount subacc) (getBalances uptonow)
+            , let HistoryReport hr = allHistory (subHledgerAccount subacc)
             ]
         }
-      | acc <- assetAccounts cfg
+      | acc <- accounts
       ]
 
     balanceFrom whenf accf valf =

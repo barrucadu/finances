@@ -12,6 +12,7 @@ import qualified Data.Time.Format   as C
 data Report = Report
   { rpWhen :: C.Day
   , rpAssets :: [AccountReport]
+  , rpLiabilities :: [AccountReport]
   , rpIncome :: [(T.Text, DeltaReport)]
   , rpBudget :: [(T.Text, DeltaReport)]
   , rpExpenses :: [(T.Text, DeltaReport)]
@@ -20,12 +21,13 @@ data Report = Report
 
 instance A.ToJSON Report where
   toJSON rp = A.object
-    [ "when"      A..= T.pack (C.formatTime C.defaultTimeLocale "%B %_Y" (rpWhen rp))
-    , "assets"    A..= A.toJSON (rpAssets rp)
-    , "income"    A..= A.object [ name A..= A.toJSON dr | (name, dr) <- rpIncome   rp ]
-    , "budget"    A..= A.object [ name A..= A.toJSON dr | (name, dr) <- rpBudget   rp ]
-    , "expenses"  A..= A.object [ name A..= A.toJSON dr | (name, dr) <- rpExpenses rp ]
-    , "history"   A..= A.object
+    [ "when"        A..= T.pack (C.formatTime C.defaultTimeLocale "%B %_Y" (rpWhen rp))
+    , "assets"      A..= A.toJSON (rpAssets      rp)
+    , "liabilities" A..= A.toJSON (rpLiabilities rp)
+    , "income"      A..= A.object [ name A..= A.toJSON dr | (name, dr) <- rpIncome   rp ]
+    , "budget"      A..= A.object [ name A..= A.toJSON dr | (name, dr) <- rpBudget   rp ]
+    , "expenses"    A..= A.object [ name A..= A.toJSON dr | (name, dr) <- rpExpenses rp ]
+    , "history"     A..= A.object
       [ date A..= A.toJSON txns
       | (day, txns) <- rpHistory rp
       , let date = T.pack (C.formatTime C.defaultTimeLocale "%d/%m" day)

@@ -19,6 +19,7 @@ data Config = Config
   { port :: Int
   , staticdir :: FilePath
   , assetAccounts :: [Account]
+  , liabilityAccounts :: [Account]
   , incomeRules :: AccountRules
   , budgetRules :: AccountRules
   , expenseRules :: AccountRules
@@ -30,6 +31,7 @@ instance Y.FromJSON Config where
       <$> httpcfg Y..: "port"
       <*> httpcfg Y..: "static_dir"
       <*> (A.parseJSON =<< o Y..: "assets")
+      <*> (A.parseJSON =<< o Y..: "liabilities")
       <*> (A.parseJSON =<< o Y..: "income")
       <*> (A.parseJSON =<< o Y..: "budget")
       <*> (A.parseJSON =<< o Y..: "expenses")

@@ -16,12 +16,12 @@ assets:
     breakdown:
     - name: Marlborough UK Micro-Cap
       # <string>
-      # The hledger account (optional)
+      # The hledger account
       account: assets:cavendish:MHMIA
       # <string> OR <string -> int>
       # The type of asset stored in this account.  Think "Cash",
-      # "Equities", "Bonds", "Property", ... (optional, defaults to
-      # "Cash")
+      # "Equities", "Bonds", "Property", ...
+      # (optional, defaults to "Cash")
       tag: Equities
       # <string>
       # Link to more information (optional)
@@ -51,6 +51,21 @@ assets:
         account: assets:santander:main
       - name: eSaver
         account: assets:santander:esaver
+
+# <[account]>
+# The liabilities:
+liabilities:
+  - name: Current
+    # <[subaccount]>
+    # Tags are ignored.
+    breakdown:
+      - name: Overdraft
+        account: liabilities:overdraft
+
+  - name: Long Term
+    breakdown:
+      - name: Student Loan
+        account: liabilities:slc
 
 # <account rules>
 # The income accounts:
