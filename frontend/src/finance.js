@@ -555,7 +555,7 @@ window.onload = () => {
         } else if (e.key == 'ArrowRight') {
             renderFinancesForNextMonth();
         } else if (e.key == 'r') {
-            renderFinancesFor(visible_month);
+            renderAssets(cached_assets_data);
         } else if (e.key == 'h') {
             show_history = !show_history;
             renderAssets(cached_assets_data);
