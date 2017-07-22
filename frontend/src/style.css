@@ -80,10 +80,6 @@ th {
 
 tfoot {
     background-color: #f8f3e9;
-}
-
-tfoot th {
-    font-weight: bold;
     font-style: italic;
     font-size: 0.9rem;
 }

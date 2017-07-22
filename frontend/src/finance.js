@@ -578,6 +578,8 @@ function renderCharts(data) {
 function renderTable(raw_data, ele, flipGoodBad=false) {
     let entries = [];
     let sources = Object.keys(raw_data).sort();
+    let totalAmount = 0;
+    let totalDelta  = 0;
     for (let i = 0; i < sources.length; i ++) {
         let source = sources[i];
         let data   = raw_data[source];
@@ -587,12 +589,21 @@ function renderTable(raw_data, ele, flipGoodBad=false) {
         entries.push({
             'source': source,
             'good':   (data.delta > 0) ? !flipGoodBad : flipGoodBad,
-            'delta':  !zeroish(data.delta) ? strAmount(data.delta, true) : '',
+            'delta':  zeroish(data.delta) ? '' : strAmount(data.delta, true),
             'amount': strAmount(data.amount)
         });
+        totalAmount += data.amount;
+        totalDelta += data.delta;
     }
 
-    ele.innerHTML = Mustache.render(TPL_SUMMARY_TABLE, { 'entry': entries });
+    ele.innerHTML = Mustache.render(TPL_SUMMARY_TABLE, {
+        entry: entries,
+        foot: {
+            good:   (totalDelta > 0) ? !flipGoodBad : flipGoodBad,
+            delta:  zeroish(totalDelta) ? '' : strAmount(totalDelta, true),
+            amount: strAmount(totalAmount)
+        }
+    });
 }
 
 function renderIncome(raw_income_data) {
@@ -639,11 +650,13 @@ function renderHistory(raw_history_data) {
         }
     }
 
-    document.getElementById('history_table').innerHTML = Mustache.render(TPL_HISTORY_TABLE, { 'entry': entries });
-
-    let total = document.getElementById('history_total');
-    total.className = (totalDelta > 0) ? 'good' : 'bad';
-    total.innerText = `${strAmount(totalDelta, true)}`;
+    document.getElementById('history_table').innerHTML = Mustache.render(TPL_HISTORY_TABLE, {
+        entry: entries,
+        foot: {
+            delta: strAmount(totalDelta, true),
+            good: totalDelta > 0
+        }
+    });
 }
 
 function renderFinancesForLastMonth() {
@@ -818,29 +831,46 @@ const TPL_BALANCE_TABLE = `
 
 // The "income", "budget", and "expenses" summary tables.
 const TPL_SUMMARY_TABLE = `
-{{#entry}}
+<tbody>
+  {{#entry}}
+    <tr>
+      <td>{{source}}</td>
+      <td class="{{#good}}good{{/good}}{{^good}}bad{{/good}} right">{{delta}}</td>
+      <td class="right">{{amount}}</td>
+    </tr>
+  {{/entry}}
+</tbody>
+<tfoot>
   <tr>
-    <th>{{source}}</th>
-    <td class="{{#good}}good{{/good}}{{^good}}bad{{/good}}">{{delta}}</td>
-    <td class="right">{{amount}}</td>
+    <th class="left">Total</th>
+    <td class="{{#foot.good}}good{{/foot.good}}{{^foot.good}}bad{{/foot.good}} right">{{foot.delta}}</td>
+    <td class="right">{{foot.amount}}</td>
   </tr>
-{{/entry}}
+</tfoot>
 `;
 
 // The "history" table.
 const TPL_HISTORY_TABLE = `
-{{#entry}}
-  <tr>
-    <th>{{day}}</th>
-    <td>{{first.title}}</td>
-    <td class="{{#first.good}}good{{/first.good}}{{^first.good}}bad{{/first.good}}">{{first.delta}}</td>
-  </tr>
-  {{#rest}}
-    <tr class="sub">
-      <th></th>
-      <td>{{title}}</td>
-      <td class="{{#good}}good{{/good}}{{^good}}bad{{/good}}">{{delta}}</td>
+<tbody>
+  {{#entry}}
+    <tr>
+      <th>{{day}}</th>
+      <td>{{first.title}}</td>
+      <td class="{{#first.good}}good{{/first.good}}{{^first.good}}bad{{/first.good}}">{{first.delta}}</td>
     </tr>
-  {{/rest}}
-{{/entry}}
+    {{#rest}}
+      <tr class="sub">
+        <th></th>
+        <td>{{title}}</td>
+        <td class="{{#good}}good{{/good}}{{^good}}bad{{/good}}">{{delta}}</td>
+      </tr>
+    {{/rest}}
+  {{/entry}}
+</tbody>
+<tfoot>
+  <tr>
+    <th class="left" colspan="2">Total</th>
+    <td class="{{#foot.good}}good{{/foot.good}}{{^foot.good}}bad{{/foot.good}} right">{{foot.delta}}</td>
+  </tr>
+</tfoot>
 `;
