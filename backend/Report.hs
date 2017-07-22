@@ -23,6 +23,7 @@ data Report = Report
 instance A.ToJSON Report where
   toJSON rp = A.object
     [ "when"        A..= T.pack (C.formatTime C.defaultTimeLocale "%B %_Y" (rpWhen rp))
+    , "date"        A..= T.pack (C.formatTime C.defaultTimeLocale "%F" (rpWhen rp))
     , "assets"      A..= A.toJSON (rpAssets      rp)
     , "liabilities" A..= A.toJSON (rpLiabilities rp)
     , "income"      A..= A.object [ name A..= A.toJSON dr | (name, dr) <- rpIncome   rp ]
@@ -53,6 +54,7 @@ data SubaccountReport = SubaccountReport
   { srName :: T.Text
   , srAmount :: Rational
   , srTags :: [(T.Text, Int)]
+  , srBalTag :: T.Text
   , srURL :: Maybe T.Text
   , srHistory :: HistoryReport
   } deriving Show
@@ -64,7 +66,8 @@ instance A.ToJSON SubaccountReport where
     , "tags"   A..= [ A.object [ "tag" A..= tag, "share" A..= share ]
                     | (tag, share) <- srTags sr
                     ]
-    , "history" A..= A.toJSON (srHistory sr)
+    , "balance_tag" A..= srBalTag sr
+    , "history"     A..= A.toJSON (srHistory sr)
     ] ++ maybe [] (\u -> [ "url" A..= u ]) (srURL sr)
 
 -- | A list of balances.

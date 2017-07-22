@@ -45,6 +45,7 @@ Usage
 - `s`: show asset summary
 - `h`: show historical balances
 - `c`: show monthly cashflow
+- `b`: show a balance sheet
 
 ### Clicky Things
 

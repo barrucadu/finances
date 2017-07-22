@@ -24,12 +24,17 @@ assets:
       # (optional, defaults to "Cash")
       tag: Equities
       # <string>
+      # The category this goes under in the balance sheet
+      # (optional, defaults to "Current")
+      balance_tag: Investments
+      # <string>
       # Link to more information (optional)
       url: https://markets.ft.com/data/funds/tearsheet/summary?s=gb00b8f8yx59:gbx
 
     - name: Neptune Emerging Markets
       account: assets:cavendish:NPMKA
       tag: Equities
+      balance_tag: Investments
       url: https://markets.ft.com/data/funds/tearsheet/summary?s=gb00b8j6sv12:gbp
 
     - name: Vanguard LifeStrategy 20%
@@ -39,6 +44,7 @@ assets:
       tag:
         Equities: 20
         Bonds:    80
+      balance_tag: Investments
       url: https://markets.ft.com/data/funds/tearsheet/summary?s=gb00b4nxy349:gbp
 
   - name: Nationwide
@@ -57,7 +63,10 @@ assets:
 liabilities:
   - name: Current
     # <[subaccount]>
-    # Tags are ignored.
+    # The behaviour is slightly different to asset breakdowns:
+    #  - 'tag' is ignored.
+    #  - 'balance_tag' defaults to the name of the overall account
+    #    ("Current" here).
     breakdown:
       - name: Overdraft
         account: liabilities:overdraft

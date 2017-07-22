@@ -80,7 +80,7 @@ dataFor cfg today txns = A.toJSON Report
     , rpHistory     = history
     }
   where
-    accountsReport accounts =
+    accountsReport accounts baltagf =
       [ AccountReport
         { arName      = accName acc
         , arBreakdown =
@@ -88,6 +88,7 @@ dataFor cfg today txns = A.toJSON Report
               { srName    = fromMaybe (accName acc) (subName subacc)
               , srAmount  = amount
               , srTags    = subTag subacc
+              , srBalTag  = fromMaybe (baltagf (accName acc)) (subBalTag subacc)
               , srURL     = subURL subacc
               , srHistory = allHistory (subHledgerAccount subacc)
               }

@@ -74,6 +74,26 @@ th {
     text-align: left;
 }
 
+.bsheet th {
+    text-align: center;
+}
+
+tfoot {
+    background-color: #f8f3e9;
+}
+
+tfoot th {
+    font-weight: bold;
+    font-style: italic;
+    font-size: 0.9rem;
+}
+
+p.emphasis {
+    display: block;
+    text-align: center;
+    font-size: 1.5rem;
+}
+
 td {
     text-align: left;
 }
@@ -98,16 +118,8 @@ td.colour span {
     width: 10px;
 }
 
-td.good, td.bad {
+.good, .bad {
     text-align: center;
-}
-
-td.left {
-    text-align: left;
-}
-
-td.right {
-    text-align: right;
 }
 
 .good {
@@ -116,6 +128,14 @@ td.right {
 
 .bad {
     color: #E2381F;
+}
+
+.left {
+    text-align: left !important;
+}
+
+.right {
+    text-align: right !important;
 }
 
 div {
@@ -172,12 +192,7 @@ div {
     justify-content: flex-start;
 }
 
-.hidden {
-    display: false;
-}
-
 .fullwidth {
-    display: none;
     padding: 0;
     margin: 0;
 }

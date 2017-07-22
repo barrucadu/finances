@@ -15,29 +15,67 @@
       <a id="next" onclick="renderFinancesForNextMonth()">▶</a>
     </h1>
 
-    <div class="container" style="align-items: center;">
-      <div id="historical_chart_container" class="noborder fullwidth hidden" style="width: 83%  !important"></div>
-      <div id="cashflow_chart_container"   class="noborder fullwidth hidden" style="width: 100% !important"></div>
+    <div id="general_chart_container" class="container" style="align-items: center;">
+      <div id="historical_chart_container" class="noborder fullwidth" style="width: 83% !important; display: none"></div>
       <div id="tags_legend_container" class="noborder"><table id="tags_legend" class="legend"></table></div>
-      <div id="tags_chart_container"     class="noborder wide" style="width: 33% !important"></div>
+      <div id="tags_chart_container" class="noborder wide" style="width: 33% !important"></div>
       <div id="balances_chart_container" class="noborder wide" style="width: 33% !important"></div>
       <div id="balances_legend_container" class="noborder"><table id="balances_legend" class="legend"></table></div>
     </div>
 
-    <div class="container">
-      <div id="income">
+    <div id="cashflow_chart_container" style="display: none"></div>
+
+    <div id="bsheet_container" style="display: none">
+      <div class="container">
+        <div id="bs_assets" style="width:33% !important">
+          <h2>Assets</h2>
+          <table id="bs_assets_table" class="bsheet wide"></table>
+        </div>
+
+        <div id="bs_equity" style="width:33% !important">
+          <h2>Equity</h2>
+          <table id="bs_equity_table" class="bsheet wide"></table>
+        </div>
+
+        <div id="bs_liabilities" style="width:33% !important">
+          <h2>Liabilities</h2>
+          <table id="bs_liabilities_table" class="bsheet wide"></table>
+        </div>
+      </div>
+      <div class="container">
+        <div id="bs_income" style="width:33% !important">
+          <h2>Income</h2>
+          <table id="bs_income_table" class="bsheet wide"></table>
+        </div>
+
+        <div id="bs_expenses" style="width:33% !important">
+          <h2>Expenses</h2>
+          <table id="bs_expenses_table" class="bsheet wide"></table>
+        </div>
+
+        <div id="bs_total" style="width:33% !important">
+          <h2>Total</h2>
+          <table id="bs_total_table" class="bsheet wide"></table>
+          <p>Expanded accounting equation for double-entry accounting with signed amounts:<br/>
+            <strong>assets + equity + expenses + income + liabilities = 0</strong></p>
+        </div>
+      </div>
+    </div>
+
+    <div id="current_container" class="container">
+      <div id="cur_income">
         <h2>Income</h2>
-        <table id="income_table" class="wide"></table>
+        <table id="cur_income_table" class="wide"></table>
       </div>
 
-      <div id="budget">
+      <div id="cur_budget">
         <h2>Budget</h2>
-        <table id="budget_table" class="wide"></table>
+        <table id="cur_budget_table" class="wide"></table>
       </div>
 
-      <div id="expenses">
+      <div id="cur_expenses">
         <h2>Expenses</h2>
-        <table id="expenses_table" class="wide"></table>
+        <table id="cur_expenses_table" class="wide"></table>
       </div>
     </div>
 

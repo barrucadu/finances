@@ -57,6 +57,7 @@ data Subaccount = Subaccount
   { subName :: Maybe T.Text
   , subHledgerAccount :: T.Text
   , subTag :: [(T.Text, Int)]
+  , subBalTag :: Maybe T.Text
   , subURL :: Maybe T.Text
   } deriving Show
 
@@ -71,6 +72,7 @@ instance Y.FromJSON Subaccount where
       <$> o Y..:? "name"
       <*> o Y..:  "account"
       <*> pure tag
+      <*> o Y..:? "balance_tag"
       <*> o Y..:? "url"
   parseJSON x = A.typeMismatch "subaccount" x
 

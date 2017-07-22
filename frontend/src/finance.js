@@ -1,4 +1,4 @@
-const THIS_YEAR  = new Date().getYear() + 1900;
+const THIS_YEAR  = new Date().getFullYear();
 const THIS_MONTH = new Date().getMonth() + 1;
 const A_MONTH_AND_A_HALF_FROM_NOW =
       (THIS_MONTH < 12) ? new Date(THIS_YEAR, THIS_MONTH, 15) : new Date(THIS_YEAR, 12, 31);
@@ -60,7 +60,7 @@ function toggleHide(asset, account=null) {
         }
     }
 
-    renderAssets();
+    renderCharts();
 }
 
 function colour(str) {
@@ -277,7 +277,7 @@ function renderAssetsHistoricalChart(raw_assets_data) {
     historical_chart_axes = chart.xAxis[0];
 }
 
-function renderAssetsCashflowChart(income_data, expense_data) {
+function renderCashflowChart(income_data, expense_data) {
     function gather(raw_data) {
         let out     = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
         let sources = Object.keys(raw_data);
@@ -402,6 +402,99 @@ function renderAssetsSnapshotChart(raw_assets_data) {
     });
 }
 
+function renderBalanceSheet(date, raw_assets_data, raw_equity_data, raw_expenses_data, raw_income_data, raw_liabilities_data) {
+    function renderComponent(name, data) {
+        let table_ele = document.getElementById(`bs_${name}_table`);
+        let total = Object.values(data).reduce((acc, d) => acc + d.reduce((acc, a) => acc + a.amount, 0), 0);
+
+        table_ele.innerHTML = Mustache.render(TPL_BALANCE_TABLE, {
+            'category': Object.keys(data).sort().map(k => {
+                let entries = [];
+                for (let i = 0; i < data[k].length; i ++) {
+                    entries.push({ name: data[k][i].name, amount: strAmount(data[k][i].amount) });
+                }
+                return { title: k, entry: entries };
+            }),
+            foot: {
+                caption: 'Total',
+                value: strAmount(total)
+            }
+        });
+
+        return total;
+    }
+
+    function gatherFromAccountReport(raw_data) {
+        let out = {};
+        for (let key in raw_data) {
+            let datum = raw_data[key];
+            for (let i = 0; i < datum.breakdown.length; i ++) {
+                let account = datum.breakdown[i];
+                if (account.amount == 0) continue;
+                if (!(account.balance_tag in out)) {
+                    out[account.balance_tag] = [];
+                }
+                out[account.balance_tag].push({ name: account.name, amount: account.amount });
+            }
+        }
+        return out;
+    };
+
+    function gatherFromDeltaReport(raw_data) {
+        let out = [];
+        let keys = Object.keys(raw_data).sort();
+        for (let i = 0; i < keys.length; i ++) {
+            let key = keys[i];
+            let datum = raw_data[key];
+            let amount = 0;
+            for (let j = 0; j < datum.history.length; j ++) {
+                if (Date.parse(datum.history[j].date) <= date.getTime()) {
+                    amount = datum.history[j].amount;
+                } else {
+                    break;
+                }
+            }
+            out.push({ name: key, amount: amount });
+        }
+        return { 'End of Period': out };
+    }
+
+    let assets_data      = gatherFromAccountReport(raw_assets_data);
+    let liabilities_data = gatherFromAccountReport(raw_liabilities_data);
+
+    let expenses_data = gatherFromDeltaReport(raw_expenses_data);
+    let income_data   = gatherFromDeltaReport(raw_income_data);
+
+    let equity_data = [];
+    let keys = Object.keys(raw_equity_data).sort();
+    for (let i = 0; i < keys.length; i ++) {
+        let key = keys[i];
+        equity_data.push({ name: key, amount: raw_equity_data[key] });
+    }
+    equity_data = { 'Start of Period': equity_data };
+
+    let assets_total      = renderComponent('assets',      assets_data);
+    let equity_total      = renderComponent('equity',      equity_data,   'Start of Period');
+    let expenses_total    = renderComponent('expenses',    expenses_data, 'End of Period');
+    let income_total      = renderComponent('income',      income_data,   'End of Period');
+    let liabilities_total = renderComponent('liabilities', liabilities_data);
+
+    document.getElementById(`bs_total_table`).innerHTML = Mustache.render(TPL_BALANCE_TABLE, {
+        category: [{
+            title: 'Balance',
+            entry: [ { name: 'Assets',      amount: strAmount(assets_total) },
+                     { name: 'Equity',      amount: strAmount(equity_total) },
+                     { name: 'Expenses',    amount: strAmount(expenses_total) },
+                     { name: 'Income',      amount: strAmount(income_total) },
+                     { name: 'Liabilities', amount: strAmount(liabilities_total) }]
+        }],
+        foot: {
+            caption: 'Overall Total',
+            value: strAmount(assets_total + equity_total + expenses_total + income_total + liabilities_total)
+        }
+    });
+}
+
 function renderAssetsBalancesLegend(raw_assets_data, show_all=false) {
     let overalltotal = raw_assets_data.reduce((acc, ass) => acc + ass.breakdown.reduce((acc2, d) => acc2 + d.amount, 0), 0);
 
@@ -450,7 +543,7 @@ function renderAssetsBalancesLegend(raw_assets_data, show_all=false) {
     );
 }
 
-function renderAssets(data) {
+function renderCharts(data) {
     if (data == undefined) {
         data = cached_data;
     }
@@ -459,22 +552,27 @@ function renderAssets(data) {
     renderAssetsTagsChartAndLegend(data.assets);
 
     // balances or history chart
-    document.getElementById('tags_legend_container').style.display      = (show == 'summary') ? 'flex'  : 'none';
-    document.getElementById('tags_chart_container').style.display       = (show == 'summary') ? 'block' : 'none';
-    document.getElementById('balances_chart_container').style.display   = (show == 'summary') ? 'block' : 'none';
-    document.getElementById('historical_chart_container').style.display = (show == 'historical') ? 'block' : 'none';
+    document.getElementById('general_chart_container').style.display    = (show == 'summary' || show == 'historical') ? 'flex' : 'none';
     document.getElementById('cashflow_chart_container').style.display   = (show == 'cashflow')   ? 'block' : 'none';
-    document.getElementById('balances_legend_container').style.display  = (show == 'cashflow')   ? 'none'  : 'block';
+    document.getElementById('bsheet_container').style.display           = (show == 'bsheet')     ? 'block' : 'none';
+    document.getElementById('tags_legend_container').style.display      = (show == 'summary')    ? 'flex'  : 'none';
+    document.getElementById('tags_chart_container').style.display       = (show == 'summary')    ? 'block' : 'none';
+    document.getElementById('balances_chart_container').style.display   = (show == 'summary')    ? 'block' : 'none';
+    document.getElementById('historical_chart_container').style.display = (show == 'historical') ? 'block' : 'none';
+    document.getElementById('current_container').style.display          = (show == 'bsheet')     ? 'none'  : 'flex';
 
     if (show == 'historical') {
         renderAssetsHistoricalChart(data.assets);
+        renderAssetsBalancesLegend(data.assets, true);
     } else if (show == 'cashflow') {
-        renderAssetsCashflowChart(data.income, data.expenses);
+        renderCashflowChart(data.income, data.expenses);
+    } else if (show == 'bsheet') {
+        let date = new Date(Date.parse(data.date));
+        renderBalanceSheet(date, data.assets, data.equity, data.expenses, data.income, data.liabilities);
     } else {
         renderAssetsSnapshotChart(data.assets);
+        renderAssetsBalancesLegend(data.assets, false);
     }
-
-    renderAssetsBalancesLegend(data.assets, show == 'historical');
 }
 
 function renderTable(raw_data, ele, flipGoodBad=false) {
@@ -498,15 +596,15 @@ function renderTable(raw_data, ele, flipGoodBad=false) {
 }
 
 function renderIncome(raw_income_data) {
-    renderTable(raw_income_data, document.getElementById('income_table'), true);
+    renderTable(raw_income_data, document.getElementById('cur_income_table'), true);
 }
 
 function renderBudget(raw_budget_data) {
-    renderTable(raw_budget_data, document.getElementById('budget_table'));
+    renderTable(raw_budget_data, document.getElementById('cur_budget_table'));
 }
 
 function renderExpenses(raw_expenses_data) {
-    renderTable(raw_expenses_data, document.getElementById('expenses_table'), true);
+    renderTable(raw_expenses_data, document.getElementById('cur_expenses_table'), true);
 }
 
 function renderHistory(raw_history_data) {
@@ -582,7 +680,7 @@ function renderFinances(month, data) {
     document.getElementById('back').style.visibility = (month == 1)  ? 'hidden' : 'visible';
     document.getElementById('next').style.visibility = (month == 12) ? 'hidden' : 'visible';
 
-    renderAssets(data);
+    renderCharts(data);
     renderIncome(data.income);
     renderBudget(data.budget);
     renderExpenses(data.expenses);
@@ -621,16 +719,19 @@ window.onload = () => {
         } else if (e.key == 'ArrowRight') {
             renderFinancesForNextMonth();
         } else if (e.key == 'r') {
-            renderAssets();
+            renderCharts();
         } else if (e.key == 's' && show != 'summary') {
             show = 'summary';
-            renderAssets();
+            renderCharts();
         } else if (e.key == 'h' && show != 'historical') {
             show = 'historical';
-            renderAssets();
+            renderCharts();
         } else if (e.key == 'c' && show != 'cashflow') {
             show = 'cashflow';
-            renderAssets();
+            renderCharts();
+        } else if (e.key == 'b' && show != 'bsheet') {
+            show = 'bsheet';
+            renderCharts();
         }
     }
 };
@@ -692,6 +793,27 @@ const TPL_PART_SHOW_ACCOUNT = `
     {{/name}}
   </td>
 </tr>
+`;
+
+// The "assets", "equity", and "liabilities" balance sheet tables.
+const TPL_BALANCE_TABLE = `
+{{#category}}
+  <tr class="category">
+    <th colspan="2">{{title}}</th>
+  </tr>
+  {{#entry}}
+    <tr>
+      <td>{{name}}</td>
+      <td class="right">{{amount}}</td>
+    </tr>
+  {{/entry}}
+{{/category}}
+<tfoot>
+  <tr>
+    <th class="left">{{foot.caption}}</th>
+    <td class="right">{{foot.value}}</td>
+  </tr>
+</tfoot>
 `;
 
 // The "income", "budget", and "expenses" summary tables.
