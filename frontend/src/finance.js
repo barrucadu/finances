@@ -60,12 +60,14 @@ function toggleHide(asset, account=null) {
 }
 
 function colour(str) {
-    let total = 0;
+    let hash = 0;
     for (let i = 0; i < str.length; i ++) {
-        total += str.charCodeAt(i);
+        hash = ((hash << 5) - hash) + str.charCodeAt(i);
+        hash |= 0;
     }
+    hash = Math.abs(hash);
 
-    return `rgb(${total % 255}, ${(total * 7) % 255}, ${(total * 13) % 255})`
+    return `rgb(${(hash * 37) % 255}, ${(hash * 131) % 255}, ${(hash * 239) % 255})`
 }
 
 function zeroish(val) {
