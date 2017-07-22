@@ -23,6 +23,7 @@ data Config = Config
   , incomeRules :: AccountRules
   , budgetRules :: AccountRules
   , expenseRules :: AccountRules
+  , equityRules :: AccountRules
   } deriving Show
 
 instance Y.FromJSON Config where
@@ -35,6 +36,7 @@ instance Y.FromJSON Config where
       <*> (A.parseJSON =<< o Y..: "income")
       <*> (A.parseJSON =<< o Y..: "budget")
       <*> (A.parseJSON =<< o Y..: "expenses")
+      <*> (A.parseJSON =<< o Y..: "equity")
     x -> A.typeMismatch "http" x
   parseJSON x = A.typeMismatch "config" x
 

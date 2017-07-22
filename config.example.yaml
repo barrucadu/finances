@@ -88,3 +88,8 @@ budget:
 # The expense accounts:
 expenses:
   simple: expenses
+
+# <account rules>
+# The equity accounts:
+equity:
+  simple: equity

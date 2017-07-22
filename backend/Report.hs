@@ -16,6 +16,7 @@ data Report = Report
   , rpIncome :: [(T.Text, DeltaReport)]
   , rpBudget :: [(T.Text, DeltaReport)]
   , rpExpenses :: [(T.Text, DeltaReport)]
+  , rpEquity :: [(T.Text, Rational)]
   , rpHistory :: [(C.Day, [TransactionReport])]
   } deriving Show
 
@@ -27,6 +28,7 @@ instance A.ToJSON Report where
     , "income"      A..= A.object [ name A..= A.toJSON dr | (name, dr) <- rpIncome   rp ]
     , "budget"      A..= A.object [ name A..= A.toJSON dr | (name, dr) <- rpBudget   rp ]
     , "expenses"    A..= A.object [ name A..= A.toJSON dr | (name, dr) <- rpExpenses rp ]
+    , "equity"      A..= A.object [ name A..= A.toJSON (toDouble bal) | (name, bal) <- rpEquity rp ]
     , "history"     A..= A.object
       [ date A..= A.toJSON txns
       | (day, txns) <- rpHistory rp

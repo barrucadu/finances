@@ -76,6 +76,7 @@ dataFor cfg today txns = A.toJSON Report
     , rpIncome      = balanceFrom monthStart    (account (incomeRules  cfg)) negate
     , rpBudget      = balanceFrom (const epoch) (account (budgetRules  cfg)) id
     , rpExpenses    = balanceFrom monthStart    (account (expenseRules cfg)) id
+    , rpEquity      = simpleReport (account (equityRules cfg)) abs
     , rpHistory     = history
     }
   where
@@ -107,6 +108,13 @@ dataFor cfg today txns = A.toJSON Report
       , account <- maybeToList (accf acc)
       , let old = M.findWithDefault 0 acc priorBals
       , let HistoryReport hr = allHistory acc
+      ]
+
+    simpleReport accf valf =
+      [ (account, valf amount)
+      | let currentBals = getBalances uptonow
+      , (acc, amount) <- M.assocs currentBals
+      , account <- maybeToList (accf acc)
       ]
 
     history =
