@@ -148,7 +148,7 @@ function renderAssetsTagsChartAndLegend(raw_assets_data) {
         });
     }
 
-    Highcharts.chart('assets_tags_chart_container', {
+    Highcharts.chart('tags_chart_container', {
         chart: { type: 'pie' },
         series: [{
             name: 'Allocation',
@@ -162,15 +162,12 @@ function renderAssetsTagsChartAndLegend(raw_assets_data) {
         }]
     });
 
-    document.getElementById('assets_tags_legend_container').removeChild(document.getElementById('assets_tags_legend'));
-    let legend = document.createElement('table');
-    legend.id = 'assets_tags_legend';
+    let legend = document.getElementById('tags_legend');
     legend.innerHTML = Mustache.render(
         TPL_LEGEND_TABLE,
         { 'entry': legendEntries },
         { 'show_entry': TPL_PART_SHOW_TAG }
     );
-    document.getElementById('assets_tags_legend_container').appendChild(legend);
 }
 
 function renderAssetsHistoricalChart(raw_assets_data) {
@@ -233,7 +230,7 @@ function renderAssetsHistoricalChart(raw_assets_data) {
         }
     }
 
-    let chart = Highcharts.stockChart('assets_historical_chart_container', {
+    let chart = Highcharts.stockChart('historical_chart_container', {
         chart: { zoomType: 'x' },
         xAxis: { max: A_MONTH_AND_A_HALF_FROM_NOW.getTime() },
         yAxis: axes,
@@ -311,7 +308,7 @@ function renderAssetsCashflowChart(income_data, expense_data) {
     function pointFormatter() { return `<span style="color:${this.series.color}; font-weight:bold">${this.series.name}</span> ${strAmount(this.y)}<br/>`; }
     let greenColour = 'rgb(100,200,100)';
     let redColour   = 'rgb(250,100,100)';
-    Highcharts.chart('assets_cashflow_chart_container', {
+    Highcharts.chart('cashflow_chart_container', {
         yAxis: { title: { text: '' } },
         xAxis: { categories: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] },
         tooltip: { shared: true },
@@ -379,7 +376,7 @@ function renderAssetsSnapshotChart(raw_assets_data) {
         }
     }
 
-    Highcharts.chart('assets_balances_chart_container', {
+    Highcharts.chart('balances_chart_container', {
         chart: { type: 'pie' },
         series: [{
             name: 'Accounts',
@@ -445,14 +442,12 @@ function renderAssetsBalancesLegend(raw_assets_data, show_all=false) {
         }
     }
 
-    let legend = document.createElement('table');
-    legend.id = 'assets_balances_legend';
+    let legend = document.getElementById('balances_legend');
     legend.innerHTML = Mustache.render(
         TPL_LEGEND_TABLE,
         { 'entry': entries },
         { 'show_entry': TPL_PART_SHOW_ACCOUNT }
     );
-    return legend;
 }
 
 function renderAssets(data) {
@@ -464,12 +459,12 @@ function renderAssets(data) {
     renderAssetsTagsChartAndLegend(data.assets);
 
     // balances or history chart
-    document.getElementById('assets_tags_legend_container').style.display      = (show_historical || show_cashflow) ? 'none' : 'flex';
-    document.getElementById('assets_tags_chart_container').style.display       = (show_historical || show_cashflow) ? 'none' : 'block';
-    document.getElementById('assets_balances_chart_container').style.display   = (show_historical || show_cashflow) ? 'none' : 'block';
-    document.getElementById('assets_historical_chart_container').style.display = show_historical ? 'block' : 'none';
-    document.getElementById('assets_cashflow_chart_container').style.display   = show_cashflow   ? 'block' : 'none';
-    document.getElementById('assets_balances_legend_container').style.display  = show_cashflow   ? 'none'  : 'block';
+    document.getElementById('tags_legend_container').style.display      = (show_historical || show_cashflow) ? 'none' : 'flex';
+    document.getElementById('tags_chart_container').style.display       = (show_historical || show_cashflow) ? 'none' : 'block';
+    document.getElementById('balances_chart_container').style.display   = (show_historical || show_cashflow) ? 'none' : 'block';
+    document.getElementById('historical_chart_container').style.display = show_historical ? 'block' : 'none';
+    document.getElementById('cashflow_chart_container').style.display   = show_cashflow   ? 'block' : 'none';
+    document.getElementById('balances_legend_container').style.display  = show_cashflow   ? 'none'  : 'block';
 
     if (show_historical) {
         renderAssetsHistoricalChart(data.assets);
@@ -479,8 +474,7 @@ function renderAssets(data) {
         renderAssetsSnapshotChart(data.assets);
     }
 
-    document.getElementById('assets_balances_legend_container').removeChild(document.getElementById('assets_balances_legend'));
-    document.getElementById('assets_balances_legend_container').appendChild(renderAssetsBalancesLegend(data.assets, show_historical));
+    renderAssetsBalancesLegend(data.assets, show_historical);
 }
 
 function renderTable(raw_data, ele, flipGoodBad=false) {

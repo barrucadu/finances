@@ -15,19 +15,13 @@
       <a id="next" onclick="renderFinancesForNextMonth()">▶</a>
     </h1>
 
-    <div id="assets">
-      <div class="container" style="align-items: center;">
-        <div id="assets_historical_chart_container" class="noborder" style="width: 83%  !important"></div>
-        <div id="assets_cashflow_chart_container"   class="noborder" style="width: 100% !important"></div>
-        <div id="assets_tags_legend_container" class="noborder">
-          <table id="assets_tags_legend"></table>
-        </div>
-        <div id="assets_tags_chart_container"     class="noborder wide" style="width: 33% !important"></div>
-        <div id="assets_balances_chart_container" class="noborder wide" style="width: 33% !important"></div>
-        <div id="assets_balances_legend_container" class="noborder">
-          <table id="assets_balances_legend"></table>
-        </div>
-      </div>
+    <div class="container" style="align-items: center;">
+      <div id="historical_chart_container" class="noborder fullwidth hidden" style="width: 83%  !important"></div>
+      <div id="cashflow_chart_container"   class="noborder fullwidth hidden" style="width: 100% !important"></div>
+      <div id="tags_legend_container" class="noborder"><table id="tags_legend" class="legend"></table></div>
+      <div id="tags_chart_container"     class="noborder wide" style="width: 33% !important"></div>
+      <div id="balances_chart_container" class="noborder wide" style="width: 33% !important"></div>
+      <div id="balances_legend_container" class="noborder"><table id="balances_legend" class="legend"></table></div>
     </div>
 
     <div class="container">

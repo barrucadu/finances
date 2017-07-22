@@ -145,40 +145,44 @@ div {
     border-left: 1px solid #ddd;
 }
 
-.container .noborder {
-    border: none;
+.noborder {
+    border: none !important;
 }
 
-#assets_balances_legend, #assets_tags_legend {
+.legend {
     font-size: 0.9rem !important;
 }
 
-#assets_balances_legend .sub td {
+.legend .sub td {
     font-size: 0.8rem !important;
 }
 
-#assets_tags_legend_container, #assets_balances_legend_container {
+#tags_legend_container, #balances_legend_container {
     display: flex;
     align-items: center;
     margin-right: 0;
     padding-right: 0;
 }
 
-#assets_tags_legend_container {
+#tags_legend_container {
     justify-content: flex-end;
 }
 
-#assets_balances_legend_container {
+#balances_legend_container {
     justify-content: flex-start;
 }
 
-#assets_historical_chart_container, #assets_cashflow_chart_container {
+.hidden {
+    display: false;
+}
+
+.fullwidth {
     display: none;
     padding: 0;
     margin: 0;
 }
 
-#assets_historical_chart_container {
+#historical_chart_container {
     flex-grow: 5;
 }
 
