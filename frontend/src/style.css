@@ -79,6 +79,8 @@ th {
 
 .bsheet th {
     text-align: center;
+    font-family: 'Noto Serif';
+    font-size: 0.7rem;
 }
 
 tfoot {
