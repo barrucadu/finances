@@ -6,16 +6,17 @@ body {
 }
 
 h1, h2 {
+    font-family: 'Noto Serif';
     font-weight: normal;
     text-align: center;
 }
 
 h1 {
-    font-size: 1.2em;
+    font-size: 1em;
 }
 
 h2 {
-    font-size: 2em;
+    font-size: 1.6em;
 }
 
 h1 span {
@@ -218,4 +219,11 @@ div {
          url('CallunaSansRegular-webfont.woff') format('woff');
     font-weight: normal;
     font-style: normal;
+}
+
+@font-face {
+    font-family: 'Noto Serif';
+    font-style: normal;
+    font-weight: 400;
+    src: local('Noto Serif'), local('NotoSerif'), url('NotoSerifRegular-webfont.woff2') format('woff2');
 }
