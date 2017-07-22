@@ -23,8 +23,9 @@ import qualified Network.HTTP.Types.URI        as W
 import qualified Network.Wai                   as W
 import qualified Network.Wai.Handler.Warp      as W
 import qualified Network.Wai.Middleware.Static as W
+import           System.Environment            (getArgs)
 import           System.Exit                   (exitFailure)
-import           System.FilePath               ((</>))
+import           System.FilePath               ((</>), takeDirectory)
 import           Text.Read                     (readMaybe)
 
 import           Config
@@ -32,11 +33,12 @@ import           Report
 
 main :: IO ()
 main = do
-  config <- Y.decodeFileEither "config.yaml"
+  fp <- fromMaybe "config.yaml" . listToMaybe <$> getArgs
+  config <- Y.decodeFileEither fp
   case config of
-    Right cfg -> run cfg
+    Right cfg -> run (cfg { staticdir = takeDirectory fp </> staticdir cfg })
     Left err  -> do
-      putStrLn "Couldn't parse configuration file:"
+      putStrLn ("Couldn't parse configuration file " ++ fp ++ ":")
       putStrLn (Y.prettyPrintParseException err)
       exitFailure
 

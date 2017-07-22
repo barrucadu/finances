@@ -4,8 +4,9 @@ http:
   # Port to listen on:
   port: 5000
   # <string>
-  # Path (relative or absolute) to static assets:
-  static_dir: ./static
+  # Path (relative to the location of this file, or absolute) to
+  # static assets:
+  static_dir: ./web
 
 # <[account]>
 # The assets charts:
