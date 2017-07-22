@@ -560,6 +560,7 @@ function renderCharts(data) {
     document.getElementById('balances_chart_container').style.display   = (show == 'summary')    ? 'block' : 'none';
     document.getElementById('historical_chart_container').style.display = (show == 'historical') ? 'block' : 'none';
     document.getElementById('current_container').style.display          = (show == 'bsheet')     ? 'none'  : 'flex';
+    document.getElementById('history_container').style.display          = (show == 'bsheet')     ? 'none'  : 'block';
 
     if (show == 'historical') {
         renderAssetsHistoricalChart(data.assets);

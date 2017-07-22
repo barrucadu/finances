@@ -198,12 +198,12 @@ div {
     flex-grow: 5;
 }
 
-#history {
+#history_container {
     width: 60%;
     margin: 0 auto;
 }
 
-#history p {
+#history_container p {
     text-align: center;
     font-size: 1.1rem;
 }
