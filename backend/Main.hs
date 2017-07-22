@@ -84,25 +84,26 @@ dataFor cfg today txns = A.toJSON Report
         , arBreakdown =
             [ SubaccountReport
               { srName    = fromMaybe (accName acc) (subName subacc)
-              , srAmount  = amountIn (getBalances uptonow)
+              , srAmount  = M.findWithDefault 0 (subHledgerAccount subacc) (getBalances uptonow)
               , srTags    = subTag subacc
               , srURL     = subURL subacc
-              , srHistory = [ (day, amountIn bals) | (day, bals, _) <- balancesAsc ]
+              , srHistory = allHistory (subHledgerAccount subacc)
               }
             | subacc <- accBreakdown acc
-            , let amountIn = M.findWithDefault 0 (subHledgerAccount subacc)
             ]
         }
       | acc <- assetAccounts cfg
       ]
 
     balanceFrom whenf accf valf =
-      [ (account, DeltaReport { drCurrent = valf amount, drPrior = valf old })
+      [ (account, DeltaReport { drCurrent = valf amount, drPrior = valf old, drHistory = HistoryReport (map (second valf) hr) })
       | let currentBals = M.unionWith (-) (getBalances uptonow)   (balancesAt (whenf today)     uptonow)
       , let priorBals   = M.unionWith (-) (getBalances uptoprior) (balancesAt (whenf lastmonth) uptoprior)
-      , (acc, amount) <- M.assocs currentBals
+      , acc <- M.keys (getBalances balances)
+      , let amount = M.findWithDefault 0 acc currentBals
       , account <- maybeToList (accf acc)
       , let old = M.findWithDefault 0 acc priorBals
+      , let HistoryReport hr = allHistory acc
       ]
 
     history =
@@ -112,6 +113,10 @@ dataFor cfg today txns = A.toJSON Report
               ])
       | (day, _, daytxns) <- takeWhile (\(d,_,_) -> monthYear d == monthYear today) uptonow
       ]
+
+    allHistory account =
+      let amountIn = M.findWithDefault 0 account
+      in HistoryReport { hrValues = [ (day, amountIn bals) | (day, bals, _) <- balancesAsc ] }
 
     balancesAt cutoff = getBalances . dropWhile (\(d,_,_) -> d > cutoff)
     getBalances = (\(_,bals,_) -> bals) . headOr initial

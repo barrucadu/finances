@@ -4,10 +4,11 @@ const A_MONTH_AND_A_HALF_FROM_NOW =
       (THIS_MONTH < 12) ? new Date(THIS_YEAR, THIS_MONTH, 15) : new Date(THIS_YEAR, 12, 31);
 
 var visible_month = 0;
-var cached_assets_data = undefined;
-var show_history = false;
+var cached_data = undefined;
+var show_historical = false;
+var show_cashflow = false;
 var hidden_accounts = {};
-var history_chart_axes = undefined;
+var historical_chart_axes = undefined;
 
 function hoverCallback(f) {
     return function (tooltipItem, data) {
@@ -60,7 +61,7 @@ function toggleHide(asset, account=null) {
         }
     }
 
-    renderAssets(cached_assets_data);
+    renderAssets();
 }
 
 function colour(str) {
@@ -172,7 +173,7 @@ function renderAssetsTagsChartAndLegend(raw_assets_data) {
     document.getElementById('assets_tags_legend_container').appendChild(legend);
 }
 
-function renderAssetsHistoryChart(raw_assets_data) {
+function renderAssetsHistoricalChart(raw_assets_data) {
     let keys   = Object.keys(raw_assets_data).filter(k => !isHidden(raw_assets_data[k]));
     let axes   = [];
     let gap    = 5;
@@ -232,7 +233,7 @@ function renderAssetsHistoryChart(raw_assets_data) {
         }
     }
 
-    let chart = Highcharts.stockChart('assets_history_chart_container', {
+    let chart = Highcharts.stockChart('assets_historical_chart_container', {
         chart: { zoomType: 'x' },
         xAxis: { max: A_MONTH_AND_A_HALF_FROM_NOW.getTime() },
         yAxis: axes,
@@ -273,11 +274,75 @@ function renderAssetsHistoryChart(raw_assets_data) {
     });
 
     // restore the old X positioning
-    if (history_chart_axes != undefined) {
-        chart.xAxis[0].setExtremes(history_chart_axes.userMin, history_chart_axes.userMax);
+    if (historical_chart_axes != undefined) {
+        chart.xAxis[0].setExtremes(historical_chart_axes.userMin, historical_chart_axes.userMax);
         chart.showResetZoom();
     }
-    history_chart_axes = chart.xAxis[0];
+    historical_chart_axes = chart.xAxis[0];
+}
+
+function renderAssetsCashflowChart(income_data, expense_data) {
+    function gather(raw_data) {
+        let out     = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        let sources = Object.keys(raw_data);
+        for (let i = 0; i < sources.length; i ++) {
+            let source = sources[i];
+            let data   = raw_data[source];
+            let last   = 0;
+            for (let j = 0; j < data.history.length; j ++) {
+                let m = new Date(Date.parse(data.history[j].date)).getMonth();
+                out[m] += data.history[j].amount - last;
+                last = data.history[j].amount;
+            }
+        }
+        return out;
+    }
+
+    let incomes      = gather(income_data);
+    let expenditures = gather(expense_data);
+
+    let balances = [];
+    let cur      = 0;
+    for (let i = 0; i < incomes.length; i ++) {
+        cur = cur + incomes[i] - expenditures[i];
+        balances.push(cur);
+    }
+
+    function pointFormatter() { return `<span style="color:${this.series.color}; font-weight:bold">${this.series.name}</span> ${strAmount(this.y)}<br/>`; }
+    let greenColour = 'rgb(100,200,100)';
+    let redColour   = 'rgb(250,100,100)';
+    Highcharts.chart('assets_cashflow_chart_container', {
+        yAxis: { title: { text: '' } },
+        xAxis: { categories: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] },
+        tooltip: { shared: true },
+        series: [{
+            type: 'column',
+            name: 'Income',
+            color: greenColour,
+            data: incomes,
+            tooltip: { pointFormatter: pointFormatter }
+        }, {
+            type: 'column',
+            name: 'Expenditure',
+            color: redColour,
+            data: expenditures,
+            tooltip: { pointFormatter: pointFormatter }
+        }, {
+            type: 'spline',
+            name: 'Total Change',
+            data: balances,
+            showPlus: true,
+            color: 'rgb(100,100,250)',
+            tooltip: {
+                pointFormatter: function () {
+                    let tag = `<span style="color:${this.series.color}; font-weight:bold">${this.series.name}</span>`;
+                    let amount = strAmount(this.y, true);
+                    let col = zeroish(this.y) ? 'black' : ((this.y < 0) ? redColour : greenColour);
+                    return `${tag}  <span style="color:${col}">${amount}</span><br/>`;
+                }
+            }
+        }]
+    });
 }
 
 function renderAssetsSnapshotChart(raw_assets_data) {
@@ -390,26 +455,32 @@ function renderAssetsBalancesLegend(raw_assets_data, show_all=false) {
     return legend;
 }
 
-function renderAssets(raw_assets_data) {
-    cached_assets_data = raw_assets_data;
+function renderAssets(data) {
+    if (data == undefined) {
+        data = cached_data;
+    }
 
     // tags
-    renderAssetsTagsChartAndLegend(raw_assets_data);
+    renderAssetsTagsChartAndLegend(data.assets);
 
     // balances or history chart
-    document.getElementById('assets_tags_legend_container').style.display    = show_history ? 'none'  : 'flex';
-    document.getElementById('assets_tags_chart_container').style.display     = show_history ? 'none'  : 'block';
-    document.getElementById('assets_balances_chart_container').style.display = show_history ? 'none'  : 'block';
-    document.getElementById('assets_history_chart_container').style.display  = show_history ? 'block' : 'none';
+    document.getElementById('assets_tags_legend_container').style.display      = (show_historical || show_cashflow) ? 'none' : 'flex';
+    document.getElementById('assets_tags_chart_container').style.display       = (show_historical || show_cashflow) ? 'none' : 'block';
+    document.getElementById('assets_balances_chart_container').style.display   = (show_historical || show_cashflow) ? 'none' : 'block';
+    document.getElementById('assets_historical_chart_container').style.display = show_historical ? 'block' : 'none';
+    document.getElementById('assets_cashflow_chart_container').style.display   = show_cashflow   ? 'block' : 'none';
+    document.getElementById('assets_balances_legend_container').style.display  = show_cashflow   ? 'none'  : 'block';
 
-    if (show_history) {
-        renderAssetsHistoryChart(raw_assets_data);
+    if (show_historical) {
+        renderAssetsHistoricalChart(data.assets);
+    } else if (show_cashflow) {
+        renderAssetsCashflowChart(data.income, data.expenses);
     } else {
-        renderAssetsSnapshotChart(raw_assets_data);
+        renderAssetsSnapshotChart(data.assets);
     }
 
     document.getElementById('assets_balances_legend_container').removeChild(document.getElementById('assets_balances_legend'));
-    document.getElementById('assets_balances_legend_container').appendChild(renderAssetsBalancesLegend(raw_assets_data, show_history));
+    document.getElementById('assets_balances_legend_container').appendChild(renderAssetsBalancesLegend(data.assets, show_historical));
 }
 
 function renderTable(raw_data, ele, flipGoodBad=false) {
@@ -508,6 +579,7 @@ function renderFinancesFor(month) {
 }
 
 function renderFinances(month, data) {
+    cached_data   = data;
     visible_month = month;
 
     document.title = data.when;
@@ -516,7 +588,7 @@ function renderFinances(month, data) {
     document.getElementById('back').style.visibility = (month == 1)  ? 'hidden' : 'visible';
     document.getElementById('next').style.visibility = (month == 12) ? 'hidden' : 'visible';
 
-    renderAssets(data.assets);
+    renderAssets(data);
     renderIncome(data.income);
     renderBudget(data.budget);
     renderExpenses(data.expenses);
@@ -555,10 +627,19 @@ window.onload = () => {
         } else if (e.key == 'ArrowRight') {
             renderFinancesForNextMonth();
         } else if (e.key == 'r') {
-            renderAssets(cached_assets_data);
+            renderAssets();
         } else if (e.key == 'h') {
-            show_history = !show_history;
-            renderAssets(cached_assets_data);
+            if (!show_historical) {
+                show_cashflow = false;
+            }
+            show_historical = !show_historical;
+            renderAssets();
+        } else if (e.key == 'c') {
+            if (!show_cashflow) {
+                show_historical = false;
+            }
+            show_cashflow = !show_cashflow;
+            renderAssets();
         }
     }
 };

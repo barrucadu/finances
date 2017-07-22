@@ -50,7 +50,7 @@ data SubaccountReport = SubaccountReport
   , srAmount :: Rational
   , srTags :: [(T.Text, Int)]
   , srURL :: Maybe T.Text
-  , srHistory :: [(C.Day, Rational)]
+  , srHistory :: HistoryReport
   } deriving Show
 
 instance A.ToJSON SubaccountReport where
@@ -60,23 +60,34 @@ instance A.ToJSON SubaccountReport where
     , "tags"   A..= [ A.object [ "tag" A..= tag, "share" A..= share ]
                     | (tag, share) <- srTags sr
                     ]
-    , "history" A..= A.toJSON [ A.object [ "date" A..= date, "amount" A..= toDouble amount ]
-                              | (day, amount) <- srHistory sr
-                              , let date = C.formatTime C.defaultTimeLocale "%F" day
-                              ]
+    , "history" A..= A.toJSON (srHistory sr)
     ] ++ maybe [] (\u -> [ "url" A..= u ]) (srURL sr)
+
+-- | A list of balances.
+newtype HistoryReport = HistoryReport
+  { hrValues :: [(C.Day, Rational)]
+  } deriving Show
+
+instance A.ToJSON HistoryReport where
+  toJSON hr = A.toJSON
+    [ A.object [ "date" A..= date, "amount" A..= toDouble amount ]
+    | (day, amount) <- hrValues hr
+    , let date = C.formatTime C.defaultTimeLocale "%F" day
+    ]
 
 -- | A report about the current and prior states of an account
 data DeltaReport = DeltaReport
   { drCurrent :: Rational
   , drPrior :: Rational
+  , drHistory :: HistoryReport
   } deriving Show
 
 instance A.ToJSON DeltaReport where
   toJSON dr = A.object
-    [ "amount" A..= toDouble (drCurrent dr)
-    , "prior"  A..= toDouble (drPrior   dr)
-    , "delta"  A..= toDouble (drCurrent dr - drPrior dr)
+    [ "amount"  A..= toDouble (drCurrent dr)
+    , "prior"   A..= toDouble (drPrior   dr)
+    , "delta"   A..= toDouble (drCurrent dr - drPrior dr)
+    , "history" A..= A.toJSON (drHistory dr)
     ]
 
 -- | A report about a single transaction.

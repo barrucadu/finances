@@ -172,11 +172,14 @@ div {
     justify-content: flex-start;
 }
 
-#assets_history_chart_container {
+#assets_historical_chart_container, #assets_cashflow_chart_container {
     display: none;
-    flex-grow: 5;
     padding: 0;
     margin: 0;
+}
+
+#assets_historical_chart_container {
+    flex-grow: 5;
 }
 
 #history {
