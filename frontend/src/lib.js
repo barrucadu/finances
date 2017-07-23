@@ -160,13 +160,13 @@ const TPL_HISTORY_TABLE = `
   {{#entry}}
     <tr>
       <th>{{day}}</th>
-      <td>{{first.title}}</td>
+      <td{{#first.virtual}} class="virtual"{{/first.virtual}}>{{first.title}}</td>
       <td class="{{#first.good}}good{{/first.good}}{{^first.good}}bad{{/first.good}}">{{first.delta}}</td>
     </tr>
     {{#rest}}
       <tr class="sub">
         <th></th>
-        <td>{{title}}</td>
+        <td{{#virtual}} class="virtual"{{/virtual}}>{{title}}</td>
         <td class="{{#good}}good{{/good}}{{^good}}bad{{/good}}">{{delta}}</td>
       </tr>
     {{/rest}}

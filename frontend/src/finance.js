@@ -500,13 +500,13 @@ function renderHistory(raw_history_data) {
         let transactions = [];
         for (let j = 0; j < data.length; j ++) {
             let transaction = data[j];
-
-            if (zeroish(transaction.delta)) continue;
+            let virtual = zeroish(transaction.delta);
 
             transactions.push({
                 'title': transaction.title,
                 'good':  transaction.delta > 0,
-                'delta': strAmount(transaction.delta, true),
+                'delta':   virtual ? '' : strAmount(transaction.delta, true),
+                'virtual': virtual
             });
 
             totalDelta += transaction.delta;

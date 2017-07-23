@@ -131,6 +131,10 @@ td.colour span {
     color: #E2381F;
 }
 
+.virtual {
+    font-style: italic;
+}
+
 .left {
     text-align: left !important;
 }
