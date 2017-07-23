@@ -62,10 +62,6 @@ function colour(str) {
     return `rgb(${(hash * 37) % 255}, ${(hash * 131) % 255}, ${(hash * 239) % 255})`
 }
 
-function zeroish(val) {
-    return val < 0.01 && val > -0.01;
-}
-
 function renderAssetsTagsChartAndLegend(raw_assets_data) {
     let tagsAmounts  = {};
     let overallTotal = 0;
@@ -489,47 +485,6 @@ function renderExpenses(raw_expenses_data) {
     renderTable(raw_expenses_data, 'expenses', true);
 }
 
-function renderHistory(raw_history_data) {
-    let entries = [];
-    let totalDelta = 0;
-    let days = Object.keys(raw_history_data).sort().reverse();
-    for (let i = 0; i < days.length; i ++) {
-        let day  = days[i];
-        let data = raw_history_data[day];
-
-        let transactions = [];
-        for (let j = 0; j < data.length; j ++) {
-            let transaction = data[j];
-            let virtual = zeroish(transaction.delta);
-
-            transactions.push({
-                'title': transaction.title,
-                'good':  transaction.delta > 0,
-                'delta':   virtual ? '' : strAmount(transaction.delta, true),
-                'virtual': virtual
-            });
-
-            totalDelta += transaction.delta;
-        }
-
-        if (transactions.length > 0) {
-            entries.push({
-                'day': day,
-                'first': transactions[0],
-                'rest': transactions.slice(1)
-            });
-        }
-    }
-
-    document.getElementById('history_table').innerHTML = Mustache.render(TPL_HISTORY_TABLE, {
-        entry: entries,
-        foot: {
-            delta: strAmount(totalDelta, true),
-            good: totalDelta > 0
-        }
-    });
-}
-
 function renderFinances(month, data) {
     document.title = data.when;
     document.getElementById('when').innerText = data.when;
@@ -541,7 +496,9 @@ function renderFinances(month, data) {
     renderIncome(data.income);
     renderBudget(data.budget);
     renderExpenses(data.expenses);
-    renderHistory(data.history);
+
+    // this function comes from history.js
+    renderHistory(data.history, 'history_table');
 }
 
 window.onload = () => {

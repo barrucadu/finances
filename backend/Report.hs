@@ -17,7 +17,7 @@ data Report = Report
   , rpBudget :: BasicReport
   , rpExpenses :: BasicReport
   , rpEquity :: [(T.Text, Rational)]
-  , rpHistory :: [(C.Day, [TransactionReport])]
+  , rpHistory :: DatedTransactionsReport
   } deriving Show
 
 instance A.ToJSON Report where
@@ -30,11 +30,7 @@ instance A.ToJSON Report where
     , "budget"      A..= A.toJSON (rpBudget      rp)
     , "expenses"    A..= A.toJSON (rpExpenses    rp)
     , "equity"      A..= A.object [ name A..= A.toJSON (toDouble bal) | (name, bal) <- rpEquity rp ]
-    , "history"     A..= A.object
-      [ date A..= A.toJSON txns
-      | (day, txns) <- rpHistory rp
-      , let date = T.pack (C.formatTime C.defaultTimeLocale "%d/%m" day)
-      ]
+    , "history"     A..= A.toJSON (rpHistory rp)
     ]
 
 -- | A summary of an account.
@@ -119,6 +115,18 @@ instance A.ToJSON TransactionReport where
   toJSON tr = A.object
     [ "title" A..= trTitle tr
     , "delta" A..= toDouble (trDelta tr)
+    ]
+
+-- | A history of transactions, grouped by day.
+newtype DatedTransactionsReport = DatedTransactionsReport
+  { dtrValues :: [(C.Day, [TransactionReport])]
+  } deriving Show
+
+instance A.ToJSON DatedTransactionsReport where
+  toJSON dtr = A.object
+    [ date A..= A.toJSON txns
+    | (day, txns) <- dtrValues dtr
+    , let date = T.pack (C.formatTime C.defaultTimeLocale "%F" day)
     ]
 
 -- | Turn a 'Rational' into a 'Double'.  This is lossy!

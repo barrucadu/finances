@@ -49,27 +49,32 @@ main = do
 run :: Config -> IO ()
 run cfg = W.runEnv (port cfg) $ serveStatic (\req respond -> respond =<< serveDynamic req) where
   serveStatic = W.staticPolicy $ W.only [("", staticdir cfg </> "index.html")] W.<|> W.addBase (staticdir cfg)
-  serveDynamic req = fmap (W.responseLBS W.ok200 [] . A.encode) $ do
-    today <- C.utctDay <$> C.getCurrentTime
+  serveDynamic req = do
+    journal <- H.defaultJournal
+    today   <- C.utctDay <$> C.getCurrentTime
     let qstr = map (second (fmap T.unpack)) . W.queryToQueryText . W.queryString $ req
         qyear  = readMaybe =<< join (lookup "year"  qstr)
         qmonth = readMaybe =<< join (lookup "month" qstr)
         qday   = readMaybe =<< join (lookup "day"   qstr)
-    case qmonth of
-      Just m ->
-        let y = fromMaybe ((\(y,_,_) -> y) (C.toGregorian today)) qyear
-            d = fromMaybe (C.gregorianMonthLength y m) qday
-        in financeDataFor cfg (C.fromGregorian y m d)
-      _ -> financeDataFor cfg today
+        date = case qmonth of
+          Just m ->
+            let y = fromMaybe ((\(y',_,_) -> y') (C.toGregorian today)) qyear
+                d = fromMaybe (C.gregorianMonthLength y m) qday
+            in C.fromGregorian y m d
+          _ -> today
+    pure . (\(c, v) -> W.responseLBS c [] v) $ case W.pathInfo req of
+      ["data"]    -> (W.ok200, A.encode . A.toJSON . dateReport cfg date  $ H.jtxns journal)
+      ["history"] -> (W.ok200, A.encode . A.toJSON . historyReport . Left $ H.jtxns journal)
+      _ -> (W.notFound404, "not found")
 
 -- | Get the data from the default hledger journal for the given date.
 financeDataFor :: Config -> C.Day -> IO A.Value
 financeDataFor cfg today =
-  dataFor cfg today . H.jtxns <$> H.defaultJournal
+  A.toJSON . dateReport cfg today . H.jtxns <$> H.defaultJournal
 
--- | Get the data for a specific day.
-dataFor :: Config -> C.Day -> [H.Transaction] -> A.Value
-dataFor cfg today txns = A.toJSON Report
+-- | Get the data for a specific date.
+dateReport :: Config -> C.Day -> [H.Transaction] -> Report
+dateReport cfg today txns = Report
     { rpWhen        = today
     , rpAssets      = accountsReport (assetAccounts     cfg) (const "Current")
     , rpLiabilities = accountsReport (liabilityAccounts cfg) id
@@ -77,7 +82,7 @@ dataFor cfg today txns = A.toJSON Report
     , rpBudget      = balanceFrom (const epoch) (account (budgetRules  cfg))
     , rpExpenses    = balanceFrom monthStart    (account (expenseRules cfg))
     , rpEquity      = simpleReport (account (equityRules cfg))
-    , rpHistory     = history
+    , rpHistory     = historyReport (Right $ takeWhile (\(d,_,_) -> monthYear d == monthYear today) uptonow)
     }
   where
     accountsReport accounts baltagf =
@@ -119,14 +124,6 @@ dataFor cfg today txns = A.toJSON Report
       , account <- maybeToList (accf acc)
       ]
 
-    history =
-      [ (day, [ TransactionReport { trTitle = txntitle, trDelta = assetDelta }
-              | (txntitle, txndeltas) <- reverse daytxns
-              , let assetDelta = M.findWithDefault 0 "assets" txndeltas
-              ])
-      | (day, _, daytxns) <- takeWhile (\(d,_,_) -> monthYear d == monthYear today) uptonow
-      ]
-
     allHistory account =
       let amountIn = M.findWithDefault 0 account
       in HistoryReport { hrValues = [ (day, amountIn bals) | (day, bals, _) <- balancesAsc ] }
@@ -142,12 +139,29 @@ dataFor cfg today txns = A.toJSON Report
     initial   = (epoch, M.empty, [])
     epoch     = C.fromGregorian 1970 1 1
 
+-- | Get the transaction history.
+historyReport :: Either [H.Transaction] DailyBalances -> DatedTransactionsReport
+historyReport txnbals = DatedTransactionsReport
+    [ (day, [ TransactionReport { trTitle = txntitle, trDelta = assetDelta }
+            | (txntitle, txndeltas) <- reverse daytxns
+            , let assetDelta = M.findWithDefault 0 "assets" txndeltas
+            ])
+    | (day, _, daytxns) <- balances
+    ]
+  where
+    balances = case txnbals of
+      Right bals -> bals
+      Left txns -> reverse (dailyBalances txns)
+
 
 -------------------------------------------------------------------------------
 
+-- | A shorthand because this is a pain to type.
+type DailyBalances = [(C.Day, M.Map T.Text Rational, [(T.Text, M.Map T.Text Rational)])]
+
 -- | Get the final balance after every day, and all the transaction
 -- deltas on that day.
-dailyBalances :: [H.Transaction] -> [(C.Day, M.Map T.Text Rational, [(T.Text, M.Map T.Text Rational)])]
+dailyBalances :: [H.Transaction] -> DailyBalances
 dailyBalances = foldr squish [] . snd . mapAccumL process M.empty . sortOn H.tdate where
   process bals txn =
     let deltas = toDeltas txn

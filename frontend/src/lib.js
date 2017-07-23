@@ -9,6 +9,19 @@ var cached_data = undefined;
  * functions
  *****************************************************************************/
 
+// Make an ajax request and do something with the result
+function ajax(url, cb) {
+    let httpRequest = new XMLHttpRequest();
+    httpRequest.onreadystatechange = function() {
+        if(httpRequest.readyState === XMLHttpRequest.DONE && httpRequest.status === 200) {
+            let data = JSON.parse(httpRequest.responseText);
+            cb(data);
+        }
+    };
+    httpRequest.open('GET', url);
+    httpRequest.send();
+}
+
 // Render finances for the end of last month, if the current page
 // allows time scrolling.
 function renderFinancesForLastMonth(renderFinances) {
@@ -32,17 +45,11 @@ function renderFinancesFor(renderFinances, month=-1) {
         month = new Date().getMonth()+1
     }
 
-    let httpRequest = new XMLHttpRequest();
-    httpRequest.onreadystatechange = function() {
-        if(httpRequest.readyState === XMLHttpRequest.DONE && httpRequest.status === 200) {
-            let data = JSON.parse(httpRequest.responseText);
-            visible_month = month;
-            cached_data = data;
-            renderFinances(month, data);
-        }
-    };
-    httpRequest.open('GET', `/data?month=${month}`);
-    httpRequest.send();
+    ajax(`/data?month=${month}`, data => {
+        visible_month = month;
+        cached_data   = data;
+        renderFinances(month, data);
+    });
 }
 
 
@@ -51,6 +58,11 @@ function strAmount(amount, showPlus=false) {
     let sign = (amount > -0.01) ? (showPlus ? '+' : '') : '-';
     let amt = Math.abs(amount).toFixed(2);
     return `${sign}£${amt}`;
+}
+
+// Check if an amount if roughly equal to zero.
+function zeroish(val) {
+    return val < 0.01 && val > -0.01;
 }
 
 
