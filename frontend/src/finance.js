@@ -3,21 +3,9 @@ const THIS_MONTH = new Date().getMonth() + 1;
 const A_MONTH_AND_A_HALF_FROM_NOW =
       (THIS_MONTH < 12) ? new Date(THIS_YEAR, THIS_MONTH, 15) : new Date(THIS_YEAR, 12, 31);
 
-var visible_month = 0;
-var cached_data = undefined;
 var show = 'summary';
 var hidden_accounts = {};
 var historical_chart_axes = undefined;
-
-function hoverCallback(f) {
-    return function (tooltipItem, data) {
-        let general_label  = data.labels[tooltipItem.index];
-        let specific_label = data.datasets[tooltipItem.datasetIndex].label;
-        let label = (specific_label == undefined) ? general_label : specific_label;
-        let value = data.datasets[tooltipItem.datasetIndex].data[tooltipItem.index];
-        return `${label}: ${f(value)}`;
-    }
-}
 
 function isHidden(asset, account=null) {
     let k = (account === null) ? asset.name : `${asset.name}${account.name}`;
@@ -76,26 +64,6 @@ function colour(str) {
 
 function zeroish(val) {
     return val < 0.01 && val > -0.01;
-}
-
-function zeroise(val) {
-    return (val > -0.01) ? val : 0
-}
-
-function range (start, end) {
-    return [...Array(1 + end - start).keys()].map(v => start + v)
-}
-
-function randRange(min, max) {
-    min = Math.ceil(min);
-    max = Math.floor(max);
-    return Math.floor(Math.random() * (max - min + 1)) + min;
-}
-
-function strAmount(amount, showPlus=false) {
-    let sign = (amount > -0.01) ? (showPlus ? '+' : '') : '-';
-    let amt = Math.abs(amount).toFixed(2);
-    return `${sign}£${amt}`;
 }
 
 function renderAssetsTagsChartAndLegend(raw_assets_data) {
@@ -402,99 +370,6 @@ function renderAssetsSnapshotChart(raw_assets_data) {
     });
 }
 
-function renderBalanceSheet(date, raw_assets_data, raw_equity_data, raw_expenses_data, raw_income_data, raw_liabilities_data) {
-    function renderComponent(name, data) {
-        let table_ele = document.getElementById(`bs_${name}_table`);
-        let total = Object.values(data).reduce((acc, d) => acc + d.reduce((acc, a) => acc + a.amount, 0), 0);
-
-        table_ele.innerHTML = Mustache.render(TPL_BALANCE_TABLE, {
-            'category': Object.keys(data).sort().map(k => {
-                let entries = [];
-                for (let i = 0; i < data[k].length; i ++) {
-                    entries.push({ name: data[k][i].name, amount: strAmount(data[k][i].amount) });
-                }
-                return { title: k, entry: entries };
-            }),
-            foot: {
-                caption: 'Total',
-                value: strAmount(total)
-            }
-        });
-
-        return total;
-    }
-
-    function gatherFromAccountReport(raw_data) {
-        let out = {};
-        for (let key in raw_data) {
-            let datum = raw_data[key];
-            for (let i = 0; i < datum.breakdown.length; i ++) {
-                let account = datum.breakdown[i];
-                if (account.amount == 0) continue;
-                if (!(account.balance_tag in out)) {
-                    out[account.balance_tag] = [];
-                }
-                out[account.balance_tag].push({ name: account.name, amount: account.amount });
-            }
-        }
-        return out;
-    };
-
-    function gatherFromDeltaReport(raw_data) {
-        let out = [];
-        let keys = Object.keys(raw_data).sort();
-        for (let i = 0; i < keys.length; i ++) {
-            let key = keys[i];
-            let datum = raw_data[key];
-            let amount = 0;
-            for (let j = 0; j < datum.history.length; j ++) {
-                if (Date.parse(datum.history[j].date) <= date.getTime()) {
-                    amount = datum.history[j].amount;
-                } else {
-                    break;
-                }
-            }
-            out.push({ name: key, amount: amount });
-        }
-        return { 'End of Period': out };
-    }
-
-    let assets_data      = gatherFromAccountReport(raw_assets_data);
-    let liabilities_data = gatherFromAccountReport(raw_liabilities_data);
-
-    let expenses_data = gatherFromDeltaReport(raw_expenses_data.accounts);
-    let income_data   = gatherFromDeltaReport(raw_income_data.accounts);
-
-    let equity_data = [];
-    let keys = Object.keys(raw_equity_data).sort();
-    for (let i = 0; i < keys.length; i ++) {
-        let key = keys[i];
-        equity_data.push({ name: key, amount: raw_equity_data[key] });
-    }
-    equity_data = { 'Start of Period': equity_data };
-
-    let assets_total      = renderComponent('assets',      assets_data);
-    let equity_total      = renderComponent('equity',      equity_data,   'Start of Period');
-    let expenses_total    = renderComponent('expenses',    expenses_data, 'End of Period');
-    let income_total      = renderComponent('income',      income_data,   'End of Period');
-    let liabilities_total = renderComponent('liabilities', liabilities_data);
-
-    document.getElementById(`bs_total_table`).innerHTML = Mustache.render(TPL_BALANCE_TABLE, {
-        category: [{
-            title: 'Balance',
-            entry: [ { name: 'Assets',      amount: strAmount(assets_total) },
-                     { name: 'Equity',      amount: strAmount(equity_total) },
-                     { name: 'Expenses',    amount: strAmount(expenses_total) },
-                     { name: 'Income',      amount: strAmount(income_total) },
-                     { name: 'Liabilities', amount: strAmount(liabilities_total) }]
-        }],
-        foot: {
-            caption: 'Overall Total',
-            value: strAmount(assets_total + equity_total + expenses_total + income_total + liabilities_total)
-        }
-    });
-}
-
 function renderAssetsBalancesLegend(raw_assets_data, show_all=false) {
     let overalltotal = raw_assets_data.reduce((acc, ass) => acc + ass.breakdown.reduce((acc2, d) => acc2 + d.amount, 0), 0);
 
@@ -554,22 +429,16 @@ function renderCharts(data) {
     // balances or history chart
     document.getElementById('general_chart_container').style.display    = (show == 'summary' || show == 'historical') ? 'flex' : 'none';
     document.getElementById('cashflow_chart_container').style.display   = (show == 'cashflow')   ? 'block' : 'none';
-    document.getElementById('bsheet_container').style.display           = (show == 'bsheet')     ? 'block' : 'none';
     document.getElementById('tags_legend_container').style.display      = (show == 'summary')    ? 'flex'  : 'none';
     document.getElementById('tags_chart_container').style.display       = (show == 'summary')    ? 'block' : 'none';
     document.getElementById('balances_chart_container').style.display   = (show == 'summary')    ? 'block' : 'none';
     document.getElementById('historical_chart_container').style.display = (show == 'historical') ? 'block' : 'none';
-    document.getElementById('current_container').style.display          = (show == 'bsheet')     ? 'none'  : 'flex';
-    document.getElementById('history_container').style.display          = (show == 'bsheet')     ? 'none'  : 'block';
 
     if (show == 'historical') {
         renderAssetsHistoricalChart(data.assets);
         renderAssetsBalancesLegend(data.assets, true);
     } else if (show == 'cashflow') {
         renderCashflowChart(data.income, data.expenses);
-    } else if (show == 'bsheet') {
-        let date = new Date(Date.parse(data.date));
-        renderBalanceSheet(date, data.assets, data.equity, data.expenses, data.income, data.liabilities);
     } else {
         renderAssetsSnapshotChart(data.assets);
         renderAssetsBalancesLegend(data.assets, false);
@@ -661,34 +530,7 @@ function renderHistory(raw_history_data) {
     });
 }
 
-function renderFinancesForLastMonth() {
-    if (visible_month > 1) {
-        renderFinancesFor(visible_month - 1);
-    }
-}
-
-function renderFinancesForNextMonth() {
-    if (visible_month < 12) {
-        renderFinancesFor(visible_month + 1);
-    }
-}
-
-function renderFinancesFor(month) {
-    let httpRequest = new XMLHttpRequest();
-    httpRequest.onreadystatechange = function() {
-        if(httpRequest.readyState === XMLHttpRequest.DONE && httpRequest.status === 200) {
-            let response = JSON.parse(httpRequest.responseText);
-            renderFinances(month, response);
-        }
-    };
-    httpRequest.open('GET', (month == THIS_MONTH) ? '/data' : `/data?month=${month}`);
-    httpRequest.send();
-}
-
 function renderFinances(month, data) {
-    cached_data   = data;
-    visible_month = month;
-
     document.title = data.when;
     document.getElementById('when').innerText = data.when;
 
@@ -725,14 +567,14 @@ window.onload = () => {
     });
 
     // Fetch the data
-    renderFinancesFor(THIS_MONTH);
+    renderFinancesFor(renderFinances);
 
     // Set up keybindings
     document.onkeyup = function(e) {
         if (e.key == 'ArrowLeft') {
-            renderFinancesForLastMonth();
+            renderFinancesForLastMonth(renderFinances);
         } else if (e.key == 'ArrowRight') {
-            renderFinancesForNextMonth();
+            renderFinancesForNextMonth(renderFinances);
         } else if (e.key == 'r') {
             renderCharts();
         } else if (e.key == 's' && show != 'summary') {
@@ -744,135 +586,6 @@ window.onload = () => {
         } else if (e.key == 'c' && show != 'cashflow') {
             show = 'cashflow';
             renderCharts();
-        } else if (e.key == 'b' && show != 'bsheet') {
-            show = 'bsheet';
-            renderCharts();
         }
     }
 };
-
-
-/*****************************************************************************
- * TEMPLATES
- *****************************************************************************/
-
-// The legend tables.
-const TPL_LEGEND_TABLE = `
-{{#entry}}
-  {{>show_entry}}
-  {{#subentry}}
-    {{>show_entry}}
-  {{/subentry}}
-{{/entry}}
-`;
-
-// Partial for displaying a single tag in the tags legend.
-const TPL_PART_SHOW_TAG = `
-<tr>
-  <td class="left">
-    <span title="{{percentage}}% of overall allocation">{{amount}}</span>
-  </td>
-  <td class="right">{{tag}}</td>
-  <td class="colour" style="background-color: {{colour}}">
-    <span></span>
-  </td>
-</tr>
-`;
-
-// Partial for displaying a single account in the balances legend.
-const TPL_PART_SHOW_ACCOUNT = `
-<tr class="{{#name}}sub{{/name}} {{#hidden}}hidden{{/hidden}}">
-  <td class="colour" style="background-color: {{colour}}">
-    <span></span>
-  </td>
-  {{#subcolour}}
-    <td class="colour" style="background-color: {{subcolour}}">
-      <span></span>
-    </td>
-  {{/subcolour}}
-  <td {{^subcolour}}colspan="2"{{/subcolour}}>
-    {{^name}}
-      <span onclick="{{onclick}}">{{asset}}</span>
-    {{/name}}{{#name}}
-      <span onclick="{{onclick}}">{{name}}</span>
-    {{/name}}
-    {{#url}}
-      <a class="note" href="{{url}}" title="More information...">(?)</a>
-    {{/url}}
-  </td>
-  <td class="right">
-    {{^name}}
-      <span title="{{percentage}}% of overall portfolio">{{amount}}</span>
-    {{/name}}{{#name}}
-      <span title="{{percentage}}% of {{asset}}">{{amount}}</span>
-    {{/name}}
-  </td>
-</tr>
-`;
-
-// The "assets", "equity", and "liabilities" balance sheet tables.
-const TPL_BALANCE_TABLE = `
-{{#category}}
-  <tr class="category">
-    <th colspan="2">{{title}}</th>
-  </tr>
-  {{#entry}}
-    <tr>
-      <td>{{name}}</td>
-      <td class="right">{{amount}}</td>
-    </tr>
-  {{/entry}}
-{{/category}}
-<tfoot>
-  <tr>
-    <th class="left">{{foot.caption}}</th>
-    <td class="right">{{foot.value}}</td>
-  </tr>
-</tfoot>
-`;
-
-// The "income", "budget", and "expenses" summary tables.
-const TPL_SUMMARY_TABLE = `
-<tbody>
-  {{#entry}}
-    <tr>
-      <td>{{source}}</td>
-      <td class="{{#good}}good{{/good}}{{^good}}bad{{/good}} right">{{delta}}</td>
-      <td class="right">{{amount}}</td>
-    </tr>
-  {{/entry}}
-</tbody>
-<tfoot>
-  <tr>
-    <th class="left">Total</th>
-    <td class="{{#foot.good}}good{{/foot.good}}{{^foot.good}}bad{{/foot.good}} right">{{foot.delta}}</td>
-    <td class="right">{{foot.amount}}</td>
-  </tr>
-</tfoot>
-`;
-
-// The "history" table.
-const TPL_HISTORY_TABLE = `
-<tbody>
-  {{#entry}}
-    <tr>
-      <th>{{day}}</th>
-      <td>{{first.title}}</td>
-      <td class="{{#first.good}}good{{/first.good}}{{^first.good}}bad{{/first.good}}">{{first.delta}}</td>
-    </tr>
-    {{#rest}}
-      <tr class="sub">
-        <th></th>
-        <td>{{title}}</td>
-        <td class="{{#good}}good{{/good}}{{^good}}bad{{/good}}">{{delta}}</td>
-      </tr>
-    {{/rest}}
-  {{/entry}}
-</tbody>
-<tfoot>
-  <tr>
-    <th class="left" colspan="2">Total</th>
-    <td class="{{#foot.good}}good{{/foot.good}}{{^foot.good}}bad{{/foot.good}} right">{{foot.delta}}</td>
-  </tr>
-</tfoot>
-`;

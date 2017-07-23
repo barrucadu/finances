@@ -1,0 +1,53 @@
+<html>
+  <head>
+    <title></title>
+    <meta charset="UTF-8">
+    <script src="vendor/mustache.min.js" type="text/javascript"></script>
+    <script src="lib.js" type="text/javascript"></script>
+    <script src="balancesheet.js" type="text/javascript"></script>
+    <link rel="stylesheet" href="style.css" type="text/css">
+  </head>
+  <body>
+    <h1>
+      <a id="back" onclick="renderBalanceSheetForLastMonth()">◀</a>
+      <span id="when"></span>
+      <a id="next" onclick="renderBalanceSheetForNextMonth()">▶</a>
+    </h1>
+
+    <div class="container">
+      <div id="bs_assets" style="width:33% !important">
+        <h2>Assets</h2>
+        <table id="bs_assets_table" class="bsheet wide"></table>
+      </div>
+
+      <div id="bs_equity" style="width:33% !important">
+        <h2>Equity</h2>
+        <table id="bs_equity_table" class="bsheet wide"></table>
+      </div>
+
+      <div id="bs_liabilities" style="width:33% !important">
+        <h2>Liabilities</h2>
+        <table id="bs_liabilities_table" class="bsheet wide"></table>
+      </div>
+    </div>
+
+    <div class="container">
+      <div id="bs_income" style="width:33% !important">
+        <h2>Income</h2>
+        <table id="bs_income_table" class="bsheet wide"></table>
+      </div>
+
+      <div id="bs_expenses" style="width:33% !important">
+        <h2>Expenses</h2>
+        <table id="bs_expenses_table" class="bsheet wide"></table>
+      </div>
+
+      <div id="bs_total" style="width:33% !important">
+        <h2>Total</h2>
+        <table id="bs_total_table" class="bsheet wide"></table>
+        <p>Expanded accounting equation for double-entry accounting with signed amounts:<br/>
+          <strong>assets + equity + expenses + income + liabilities = 0</strong></p>
+      </div>
+    </div>
+  </body>
+</html>
