@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Main where
@@ -49,9 +50,17 @@ main = do
 run :: Config -> IO ()
 run cfg = W.runEnv (port cfg) $ serveStatic (\req respond -> respond =<< serveDynamic req) where
   serveStatic = W.staticPolicy $ W.only [("", staticdir cfg </> "index.html")] W.<|> W.addBase (staticdir cfg)
+
   serveDynamic req = do
-    journal <- H.defaultJournal
-    today   <- C.utctDay <$> C.getCurrentTime
+    journalPath <- maybe H.defaultJournalPath pure (journalpath cfg)
+    H.readJournalFile Nothing Nothing True journalPath >>= \case
+      Right journal -> serveDynamic' req journal
+      Left  err -> do
+        putStrLn err
+        pure (W.responseLBS W.internalServerError500 [] "cannot read journal file")
+
+  serveDynamic' req journal = do
+    today <- C.utctDay <$> C.getCurrentTime
     let qstr = map (second (fmap T.unpack)) . W.queryToQueryText . W.queryString $ req
         qyear  = readMaybe =<< join (lookup "year"  qstr)
         qmonth = readMaybe =<< join (lookup "month" qstr)

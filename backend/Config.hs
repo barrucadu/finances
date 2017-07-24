@@ -16,7 +16,8 @@ import           System.FilePath     (FilePath)
 
 -- | The parsed configuration file.
 data Config = Config
-  { port :: Int
+  { journalpath :: Maybe FilePath
+  , port :: Int
   , staticdir :: FilePath
   , assetAccounts :: [Account]
   , liabilityAccounts :: [Account]
@@ -29,7 +30,8 @@ data Config = Config
 instance Y.FromJSON Config where
   parseJSON (Y.Object o) = o Y..: "http" >>= \case
     Y.Object httpcfg -> Config
-      <$> httpcfg Y..: "port"
+      <$> o Y..:? "journal_file"
+      <*> httpcfg Y..: "port"
       <*> httpcfg Y..: "static_dir"
       <*> (A.parseJSON =<< o Y..: "assets")
       <*> (A.parseJSON =<< o Y..: "liabilities")
