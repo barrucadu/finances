@@ -24,9 +24,10 @@ import qualified Network.HTTP.Types.URI        as W
 import qualified Network.Wai                   as W
 import qualified Network.Wai.Handler.Warp      as W
 import qualified Network.Wai.Middleware.Static as W
+import           System.Directory              (getHomeDirectory)
 import           System.Environment            (getArgs)
 import           System.Exit                   (exitFailure)
-import           System.FilePath               ((</>), takeDirectory)
+import           System.FilePath               (FilePath, takeDirectory, (</>))
 import           Text.Read                     (readMaybe)
 
 import           Config
@@ -52,7 +53,7 @@ run cfg = W.runEnv (port cfg) $ serveStatic (\req respond -> respond =<< serveDy
   serveStatic = W.staticPolicy $ W.only [("", staticdir cfg </> "index.html")] W.<|> W.addBase (staticdir cfg)
 
   serveDynamic req = do
-    journalPath <- maybe H.defaultJournalPath pure (journalpath cfg)
+    journalPath <- maybe H.defaultJournalPath canonicalise (journalpath cfg)
     H.readJournalFile Nothing Nothing True journalPath >>= \case
       Right journal -> serveDynamic' req journal
       Left  err -> do
@@ -230,3 +231,8 @@ account rules0 acc = go rules0 where
     words <- mapM T.uncons (T.words name)
     pure . T.unwords $ map (\(c, rest) -> T.cons (toUpper c) rest) words
   go None = Nothing
+
+-- | Expand a "~/" at the start of a path.
+canonicalise :: FilePath -> IO FilePath
+canonicalise ('~':'/':rest) = (</> rest) <$> getHomeDirectory
+canonicalise fp = pure fp

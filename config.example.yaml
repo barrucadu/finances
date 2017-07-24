@@ -1,7 +1,7 @@
 # <string>
 # Path (relative to the location of this file, or absolute) to the
 # hledger journal. (optional)
-journal_file: ./hledger.journal
+journal_file: ~/hledger.journal
 
 # The web server:
 http:
