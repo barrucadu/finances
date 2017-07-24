@@ -8,11 +8,18 @@
     <link rel="stylesheet" href="style.css" type="text/css">
   </head>
   <body>
-    <h1>
-      <a id="back" onclick="renderBalanceSheetForLastMonth()">◀</a>
-      <span id="when"></span>
-      <a id="next" onclick="renderBalanceSheetForNextMonth()">▶</a>
-    </h1>
+    <header>
+      <h1>
+        <a id="back" onclick="renderBalanceSheetForLastMonth()">◀</a>
+        <span id="when"></span>
+        <a id="next" onclick="renderBalanceSheetForNextMonth()">▶</a>
+      </h1>
+      <nav>
+        <a href="/">Summary</a>
+        <a href="/balancesheet.html">Balance Sheet</a>
+        <a href="/history.html">History</a>
+      </nav>
+    </header>
 
     <div class="container">
       <div id="bs_assets" style="width:33% !important">

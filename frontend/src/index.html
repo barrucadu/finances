@@ -11,11 +11,18 @@
     <link rel="stylesheet" href="style.css" type="text/css">
   </head>
   <body>
-    <h1>
-      <a id="back" onclick="renderFinancesForLastMonth()">◀</a>
-      <span id="when"></span>
-      <a id="next" onclick="renderFinancesForNextMonth()">▶</a>
-    </h1>
+    <header>
+      <h1>
+        <a id="back" onclick="renderFinancesForLastMonth()">◀</a>
+        <span id="when"></span>
+        <a id="next" onclick="renderFinancesForNextMonth()">▶</a>
+      </h1>
+      <nav>
+        <a href="/">Summary</a>
+        <a href="/balancesheet.html">Balance Sheet</a>
+        <a href="/history.html">History</a>
+      </nav>
+    </header>
 
     <div id="general_chart_container" class="container" style="align-items: center;">
       <div id="historical_chart_container" class="noborder fullwidth" style="width: 83% !important; display: none"></div>

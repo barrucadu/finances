@@ -5,6 +5,32 @@ body {
     background-color: #fffaf0;
 }
 
+header {
+    margin: 0;
+    padding: 0;
+    position: relative;
+}
+
+header nav {
+    position: absolute;
+    right: 0px;
+    top: 0px;
+}
+
+header nav a {
+    text-transform: lowercase;
+    color: #7790BF !important;
+    text-decoration: none;
+    display: inline-block;
+    margin: 0 1rem;
+    font-weight: bold;
+}
+
+header nav a:hover {
+    text-decoration: underline;
+    color: #BF9077 !important;
+}
+
 h1, h2 {
     font-family: 'Noto Serif';
     font-weight: normal;
