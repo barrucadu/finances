@@ -20,23 +20,6 @@ function renderComponent(name, data) {
     return total;
 }
 
-// Gather balance data from an account report.
-function gatherFromAccountReport(raw_data) {
-    let out = {};
-    for (let key in raw_data) {
-        let datum = raw_data[key];
-        for (let i = 0; i < datum.breakdown.length; i ++) {
-            let account = datum.breakdown[i];
-            if (account.amount == 0) continue;
-            if (!(account.balance_tag in out)) {
-                out[account.balance_tag] = [];
-            }
-            out[account.balance_tag].push({ name: account.name, amount: account.amount });
-        }
-    }
-    return out;
-}
-
 // Gather balance data from a delta report.
 function gatherFromDeltaReport(date, raw_data) {
     let out = [];
@@ -107,6 +90,10 @@ function renderFinances(month, data) {
 }
 
 window.onload = () => {
+
+    // From sidebar.js
+    renderSidebar();
+
     // Fetch the data
     renderFinancesFor(renderFinances);
 

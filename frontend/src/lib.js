@@ -1,3 +1,6 @@
+// Month names
+const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
 // The visible month, if the current page allows time scrolling.
 var visible_month = 0;
 
@@ -63,6 +66,58 @@ function strAmount(amount, showPlus=false) {
 // Check if an amount if roughly equal to zero.
 function zeroish(val) {
     return val < 0.01 && val > -0.01;
+}
+
+// Generate a colour value by hashing a string.
+function colour(str) {
+    let hash = 0;
+    for (let i = 0; i < str.length; i ++) {
+        hash = ((hash << 5) - hash) + str.charCodeAt(i);
+        hash |= 0;
+    }
+    hash = Math.abs(hash);
+
+    return `rgb(${(hash * 37) % 255}, ${(hash * 131) % 255}, ${(hash * 239) % 255})`
+}
+
+// Default values for charts
+function setChartDefaults() {
+    Highcharts.setOptions({
+        chart:    { backgroundColor: null },
+        title:    { text: '' },
+        subTitle: { text: '' },
+        credits:  { enabled: false },
+        plotOptions: {
+            pie: {
+                borderWidth: 2,
+                shadow: false,
+                center: ['50%', '50%'],
+                tooltip: {
+                    headerFormat: '<span style="color:{point.color}; font-weight: bold">{point.key}</span><br/>'
+                }
+            },
+            series: {
+                dataLabels: { enabled: false }
+            }
+        }
+    });
+}
+
+// Gather balance data from an account report.
+function gatherFromAccountReport(raw_data) {
+    let out = {};
+    for (let key in raw_data) {
+        let datum = raw_data[key];
+        for (let i = 0; i < datum.breakdown.length; i ++) {
+            let account = datum.breakdown[i];
+            if (account.amount == 0) continue;
+            if (!(account.balance_tag in out)) {
+                out[account.balance_tag] = [];
+            }
+            out[account.balance_tag].push({ name: account.name, amount: account.amount });
+        }
+    }
+    return out;
 }
 
 

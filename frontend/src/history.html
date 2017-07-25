@@ -2,20 +2,19 @@
   <head>
     <title></title>
     <meta charset="UTF-8">
+    <script src="vendor/highcharts.min.js" type="text/javascript"></script>
     <script src="vendor/mustache.min.js" type="text/javascript"></script>
     <script src="lib.js" type="text/javascript"></script>
+    <script src="sidebar.js" type="text/javascript"></script>
     <script src="history.js" type="text/javascript"></script>
     <link rel="stylesheet" href="style.css" type="text/css">
   </head>
   <body>
     <header>
       <h1>History</h1>
-      <nav>
-        <a href="/">Summary</a>
-        <a href="/balancesheet.html">Balance Sheet</a>
-        <a href="/history.html">History</a>
-      </nav>
     </header>
+
+    <div id="sidebar"></div>
 
     <div id="history_container">
       <div class="month">

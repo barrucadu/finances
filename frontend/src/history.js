@@ -53,6 +53,9 @@ function getMonthlyTxns(raw_data, year, month) {
 }
 
 window.onload = () => ajax(`/history`, all_data => {
+    // From sidebar.js
+    renderSidebar();
+
     // render one month at a time, all into separate tables.
     let year = new Date().getFullYear();
     for (let i = 12; i > 0; i --) {

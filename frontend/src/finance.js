@@ -51,17 +51,6 @@ function toggleHide(asset, account=null) {
     renderCharts();
 }
 
-function colour(str) {
-    let hash = 0;
-    for (let i = 0; i < str.length; i ++) {
-        hash = ((hash << 5) - hash) + str.charCodeAt(i);
-        hash |= 0;
-    }
-    hash = Math.abs(hash);
-
-    return `rgb(${(hash * 37) % 255}, ${(hash * 131) % 255}, ${(hash * 239) % 255})`
-}
-
 function renderAssetsTagsChartAndLegend(raw_assets_data) {
     let tagsAmounts  = {};
     let overallTotal = 0;
@@ -503,25 +492,10 @@ function renderFinances(month, data) {
 
 window.onload = () => {
     // Default options for charts
-    Highcharts.setOptions({
-        chart:    { backgroundColor: null },
-        title:    { text: '' },
-        subTitle: { text: '' },
-        credits:  { enabled: false },
-        plotOptions: {
-            pie: {
-                borderWidth: 2,
-                shadow: false,
-                center: ['50%', '50%'],
-                tooltip: {
-                    headerFormat: '<span style="color:{point.color}; font-weight: bold">{point.key}</span><br/>'
-                }
-            },
-            series: {
-                dataLabels: { enabled: false }
-            }
-        }
-    });
+    setChartDefaults();
+
+    // From sidebar.js
+    renderSidebar();
 
     // Fetch the data
     renderFinancesFor(renderFinances);
