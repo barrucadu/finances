@@ -9,6 +9,27 @@ var historical_chart_axes = undefined;
 var hidden_assets = {};
 var hidden_allocations = {};
 
+// Toggle points in a pie chart
+function legendItemClick(hider) {
+    return function() {
+        if (this.name in hider) {
+            delete hider[this.name];
+        } else {
+            hider[this.name] = true;
+        }
+
+        for (let point of this.series.chart.series[1].points) {
+            if (point.owner == this.name) {
+                if (this.name in hider) {
+                    point.update({visible: false, name: '', originalName: point.name });
+                } else {
+                    point.update({visible: true, name: point.originalName });
+                }
+            }
+        }
+    }
+}
+
 function renderAllocationChart(assets_data, commodities_data) {
     let overallTotal = 0;
 
@@ -61,6 +82,7 @@ function renderAllocationChart(assets_data, commodities_data) {
             name: akey,
             y: amount,
             color: colour(akey),
+            visible: !(akey in hidden_allocations)
         });
 
         for (let ckey in commodityWorthTotals) {
@@ -77,7 +99,8 @@ function renderAllocationChart(assets_data, commodities_data) {
                         color: colour(ckey),
                         ckey: ckey,
                         amount: commodityAmount * share / totalShare,
-                        allocation: akey
+                        owner: akey,
+                        visible: !(akey in hidden_allocations)
                     });
                 }
             } else if (akey == 'Cash') {
@@ -87,7 +110,8 @@ function renderAllocationChart(assets_data, commodities_data) {
                     color: colour(ckey),
                     ckey: ckey,
                     amount: commodityAmount,
-                    allocation: 'Cash'
+                    owner: 'Cash',
+                    visible: !('Cash' in hidden_allocations)
                 });
             }
         }
@@ -99,31 +123,34 @@ function renderAllocationChart(assets_data, commodities_data) {
             name: 'Allocation',
             data: allocationData,
             size: '60%',
+            dataLabels: { enabled: false },
+            showInLegend: true,
             tooltip: {
                 pointFormatter: function() {
                     return `${strAmount(this.y)} (${(100*this.y/overallTotal).toFixed(2)}% of overall allocation)<br/>`;
                 }
             },
-            dataLabels: { enabled: false },
-            showInLegend: true
+            point: {
+                events: { legendItemClick: legendItemClick(hidden_allocations) }
+            }
         },{
             name: 'Commodities',
             data: commodityData,
             size: '80%',
             innerSize: '60%',
+            dataLabels: { enabled: true },
             tooltip: {
                 pointFormatter: function() {
                     let naked = strAmount(this.amount, false, false);
                     let worth = (this.ckey == '£') ? '' : `(worth ${strAmount(this.y)})`;
-                    let fraction = (100 * this.y / allocationTotals[this.allocation]).toFixed(2);
+                    let fraction = (100 * this.y / allocationTotals[this.owner]).toFixed(2);
                     if (this.ckey.match(/^[0-9a-zA-Z]+$/)) {
-                        return `${naked} ${this.ckey} ${worth} (${fraction}% of ${this.allocation})<br/>`;
+                        return `${naked} ${this.ckey} ${worth} (${fraction}% of ${this.owner})<br/>`;
                     } else {
-                        return `${this.ckey}${naked} ${worth} (${fraction}% of ${this.allocation})<br/>`;
+                        return `${this.ckey}${naked} ${worth} (${fraction}% of ${this.owner})<br/>`;
                     }
                 }
-            },
-            dataLabels: { enabled: true }
+            }
         }]
     });
 }
@@ -313,7 +340,8 @@ function renderAssetsSnapshotChart(raw_assets_data) {
         assetData.push({
             name: asset.name,
             y: assetAmount,
-            color: colour(asset.name)
+            color: colour(asset.name),
+            visible: !(asset.name in hidden_assets)
         });
 
         for (let i = 0; i < asset.breakdown.length; i ++) {
@@ -326,7 +354,9 @@ function renderAssetsSnapshotChart(raw_assets_data) {
                 name: account.name,
                 y: amount,
                 color: colour((account.name == asset.name) ? asset.name : `${asset.name} (${account.name})`),
-                asset: {name: asset.name, amount: assetAmount}
+                asset: {name: asset.name, amount: assetAmount},
+                owner: asset.name,
+                visible: !(asset.name in hidden_assets)
             });
         }
     }
@@ -337,25 +367,28 @@ function renderAssetsSnapshotChart(raw_assets_data) {
             name: 'Accounts',
             data: assetData,
             size: '60%',
+            dataLabels: { enabled: false },
+            showInLegend: true,
             tooltip: {
                 pointFormatter: function() {
                     return `${strAmount(this.y)} (${(100*this.y/overallTotal).toFixed(2)}% of overall portfolio)<br/>`;
                 }
             },
-            dataLabels: { enabled: false },
-            showInLegend: true
+            point: {
+                events: { legendItemClick: legendItemClick(hidden_assets) }
+            }
         }, {
             name: 'Breakdown',
             data: accountData,
             size: '80%',
             innerSize: '60%',
             id: 'versions',
+            dataLabels: { enabled: true },
             tooltip: {
                 pointFormatter: function() {
                     return `${strAmount(this.y)} (${(100*this.y/this.asset.amount).toFixed(2)}% of ${this.asset.name})<br/>`;
                 }
-            },
-            dataLabels: { enabled: true }
+            }
         }]
     });
 }
