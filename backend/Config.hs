@@ -3,12 +3,13 @@
 
 module Config where
 
-import           Control.Applicative ((*>), (<|>))
 import           Control.Monad       (mapM)
 import qualified Data.Aeson          as A
 import qualified Data.Aeson.Types    as A
-import           Data.Foldable       (toList)
+import qualified Data.Foldable       as F
 import qualified Data.HashMap.Lazy   as HM
+import           Data.List.NonEmpty  (NonEmpty(..), nonEmpty)
+import           Data.String         (IsString(..))
 import qualified Data.Text           as T
 import qualified Data.Yaml           as Y
 import           System.FilePath     (FilePath)
@@ -16,103 +17,125 @@ import           System.FilePath     (FilePath)
 
 -- | The parsed configuration file.
 data Config = Config
-  { journalpath :: Maybe FilePath
-  , port :: Int
-  , staticdir :: FilePath
-  , assetAccounts :: [Account]
-  , liabilityAccounts :: [Account]
-  , incomeRules :: AccountRules
-  , budgetRules :: AccountRules
-  , expenseRules :: AccountRules
-  , equityRules :: AccountRules
+  { journalPath :: Maybe FilePath
+  , http        :: HTTPConfig
+  , tree        :: TreeConfig
+  , accounts    :: [(T.Text, AccountConfig)]
+  , commodities :: [(T.Text, CommodityConfig)]
   } deriving Show
 
 instance Y.FromJSON Config where
-  parseJSON (Y.Object o) = o Y..: "http" >>= \case
-    Y.Object httpcfg -> Config
-      <$> o Y..:? "journal_file"
-      <*> httpcfg Y..: "port"
-      <*> httpcfg Y..: "static_dir"
-      <*> (A.parseJSON =<< o Y..: "assets")
-      <*> (A.parseJSON =<< o Y..: "liabilities")
-      <*> (A.parseJSON =<< o Y..: "income")
-      <*> (A.parseJSON =<< o Y..: "budget")
-      <*> (A.parseJSON =<< o Y..: "expenses")
-      <*> (A.parseJSON =<< o Y..: "equity")
-    x -> A.typeMismatch "http" x
+  parseJSON (Y.Object o) = Config
+    <$> o Y..:? "journal_file"
+    <*> (Y.parseJSON =<<  o Y..:  "http")
+    <*> (Y.parseJSON =<< (o Y..:? "tree" Y..!= Y.Null))
+    <*> fmap HM.toList (Y.parseJSON =<< (o Y..:? "accounts"    Y..!= Y.Null))
+    <*> fmap HM.toList (Y.parseJSON =<< (o Y..:? "commodities" Y..!= Y.Null))
   parseJSON x = A.typeMismatch "config" x
 
--- | Rules for an account.
-data Account = Account
-  { accName :: T.Text
-  , accBreakdown :: [Subaccount]
+-- | Configuration for the HTTP server
+data HTTPConfig = HTTPConfig
+  { port      :: Int
+  , staticDir :: FilePath
   } deriving Show
 
-instance Y.FromJSON Account where
-  parseJSON (Y.Object o) = Account
-    <$> o Y..: "name"
-    <*> (Y.parseJSON =<< o Y..: "breakdown")
-  parseJSON x = A.typeMismatch "account" x
+instance Y.FromJSON HTTPConfig where
+  parseJSON (Y.Object o) = HTTPConfig
+    <$> o Y..: "port"
+    <*> o Y..: "static_dir"
+  parseJSON x = A.typeMismatch "http" x
 
--- | Rules for a subaccount.
-data Subaccount = Subaccount
-  { subName :: Maybe T.Text
-  , subHledgerAccount :: T.Text
-  , subTag :: [(T.Text, Int)]
-  , subBalTag :: Maybe T.Text
-  , subURL :: Maybe T.Text
+-- | Configuration for the account tree.
+data TreeConfig = TreeConfig
+  { assetAccounts     :: NonEmpty Pattern
+  , equityAccounts    :: NonEmpty Pattern
+  , expenseAccounts   :: NonEmpty Pattern
+  , incomeAccounts    :: NonEmpty Pattern
+  , liabilityAccounts :: NonEmpty Pattern
+  , budgetAccounts    :: NonEmpty Pattern
   } deriving Show
 
-instance Y.FromJSON Subaccount where
-  parseJSON (Y.Object o) = do
-    tag <- o Y..:? "tag" >>= \case
-      Just (Y.String tags) -> pure [(tags, 100)]
-      Just (Y.Object tago) -> HM.toList <$> mapM Y.parseJSON tago
-      Just x  -> A.typeMismatch "tag" x
-      Nothing -> pure [("Cash", 100)]
-    Subaccount
-      <$> o Y..:? "name"
-      <*> o Y..:  "account"
-      <*> pure tag
-      <*> o Y..:? "balance_tag"
-      <*> o Y..:? "url"
-  parseJSON x = A.typeMismatch "subaccount" x
+instance Y.FromJSON TreeConfig where
+  parseJSON = \case
+      Y.Object o -> TreeConfig
+        <$> (atLeastOne =<< o Y..:? "assets")      Y..!= defAssets
+        <*> (atLeastOne =<< o Y..:? "equity")      Y..!= defEquity
+        <*> (atLeastOne =<< o Y..:? "expenses")    Y..!= defExpenses
+        <*> (atLeastOne =<< o Y..:? "income")      Y..!= defIncome
+        <*> (atLeastOne =<< o Y..:? "liabilities") Y..!= defLiabilities
+        <*> (atLeastOne =<< o Y..:? "budget")      Y..!= defBudget
+      Y.Null -> pure $
+        TreeConfig defAssets defEquity defExpenses defIncome defLiabilities defBudget
+      x -> A.typeMismatch "tree" x
+    where
+      atLeastOne (Just (Y.String pat)) = pure . Just $ Pattern pat:|[]
+      atLeastOne (Just (Y.Array  arr)) = do
+        pats <- mapM Y.parseJSON (F.toList arr)
+        maybe (A.typeMismatch "pattern_list" Y.Null) (pure . Just) (nonEmpty pats)
+      atLeastOne (Just x) = A.typeMismatch "pattern" x
+      atLeastOne Nothing = pure Nothing
 
--- | Rules for an account name.
-data AccountRules
-  = Only [(T.Text, T.Text)]
-  -- ^ A fixed list of transformations.
-  | Try [AccountRules]
-  -- ^ Try the rules in order.
-  | Simple T.Text
-  -- ^ Use the simple rule (drop prefix + capitalise words)
-  | None
-  -- ^ Forbid everything.
+      defAssets      = "assets:*":|[]
+      defEquity      = "equity:*":|[]
+      defExpenses    = "expenses:*":|[]
+      defIncome      = "income:*":|[]
+      defLiabilities = "liabilities:*":|[]
+      defBudget      = "budget:*":|[]
+
+-- | An account name pattern.
+newtype Pattern = Pattern T.Text
   deriving Show
 
-instance Y.FromJSON AccountRules where
-  parseJSON (Y.Array  v) = Try . toList <$> mapM A.parseJSON v
-  parseJSON (Y.Object o) = only <|> simple <|> none where
-    only = o Y..: "only" >>= \case
-      Y.Object o_ -> Only . HM.toList <$> mapM A.parseJSON o_
-      x -> A.typeMismatch "only" x
-    simple = o Y..: "simple" >>= \case
-      Y.String s_ -> pure (Simple s_)
-      x -> A.typeMismatch "simple" x
-    none = (o Y..: "none" :: A.Parser A.Value) *> pure None
-  parseJSON Y.Null = pure None
-  parseJSON x = A.typeMismatch "account rules" x
+instance Y.FromJSON Pattern where
+  parseJSON (Y.String s) = pure (Pattern s)
+  parseJSON x = A.typeMismatch "pattern" x
 
--- | Rules for an account description.
-data AccountDescription = AccountDescription
-  { accLongName :: Maybe T.Text
-  , accTag :: T.Text
-  , accURL :: Maybe T.Text
+instance IsString Pattern where
+  fromString = Pattern . T.pack
+
+-- | Configuration for an account
+data AccountConfig = AccountConfig
+  { aName     :: Maybe T.Text
+  , aURL      :: Maybe T.Text
+  , aCategory :: Maybe T.Text
   } deriving Show
 
-instance Y.FromJSON AccountDescription where
-  parseJSON (Y.Object o) = AccountDescription
+instance Y.FromJSON AccountConfig where
+  parseJSON (Y.Object o) = AccountConfig
     <$> o Y..:? "name"
-    <*> o Y..:  "tag"
     <*> o Y..:? "url"
-  parseJSON x = A.typeMismatch "account description" x
+    <*> o Y..:? "category"
+  parseJSON (Y.String s) = pure $
+    AccountConfig (Just s) Nothing Nothing
+  parseJSON Y.Null = pure $
+    AccountConfig Nothing Nothing Nothing
+  parseJSON x = A.typeMismatch "account" x
+
+-- | Configuration for a commodity
+data CommodityConfig = CommodityConfig
+  { cName       :: Maybe T.Text
+  , cURL        :: Maybe T.Text
+  , cAllocation :: NonEmpty (T.Text, Int)
+  } deriving Show
+
+instance Y.FromJSON CommodityConfig where
+  parseJSON = \case
+      Y.Object o -> CommodityConfig
+        <$> o Y..:? "name"
+        <*> o Y..:? "url"
+        <*> (allocation =<< o Y..:? "allocation")
+      Y.String s -> pure $
+        CommodityConfig (Just s) Nothing defAllocation
+      Y.Null -> pure $
+        CommodityConfig Nothing Nothing defAllocation
+      x -> A.typeMismatch "commodity" x
+    where
+      allocation (Just (Y.Object o)) = do
+        bits <- mapM (\(s,n) -> (,) s <$> Y.parseJSON n) (HM.toList o)
+        maybe (A.typeMismatch "allocation_list" Y.Null) pure (nonEmpty bits)
+      allocation (Just (Y.String s)) = pure ((s, 1):|[])
+      allocation (Just Y.Null) = pure defAllocation
+      allocation (Just x) = A.typeMismatch "allocation" x
+      allocation Nothing = pure defAllocation
+
+      defAllocation = ("Cash", 1):|[]

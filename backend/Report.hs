@@ -3,39 +3,45 @@
 module Report where
 
 import qualified Data.Aeson         as A
+import           Data.List.NonEmpty (toList)
+import           Data.Maybe         (catMaybes)
 import           Data.Ratio         (Rational)
 import qualified Data.Text          as T
 import qualified Data.Time.Calendar as C
 import qualified Data.Time.Format   as C
 
+import qualified Config as FC
+
 -- | A report to send to the user.
 data Report = Report
-  { rpWhen :: C.Day
-  , rpAssets :: [AccountReport]
+  { rpWhen        :: C.Day
+  , rpAssets      :: [AccountReport]
   , rpLiabilities :: [AccountReport]
-  , rpIncome :: BasicReport
-  , rpBudget :: BasicReport
-  , rpExpenses :: BasicReport
-  , rpEquity :: [(T.Text, Rational)]
-  , rpHistory :: DatedTransactionsReport
+  , rpIncome      :: BasicReport
+  , rpBudget      :: BasicReport
+  , rpExpenses    :: BasicReport
+  , rpEquity      :: [(T.Text, Rational)]
+  , rpHistory     :: DatedTransactionsReport
+  , rpCommodities :: [(T.Text, CommodityReport)]
   } deriving Show
 
 instance A.ToJSON Report where
   toJSON rp = A.object
     [ "when"        A..= T.pack (C.formatTime C.defaultTimeLocale "%B %_Y" (rpWhen rp))
     , "date"        A..= T.pack (C.formatTime C.defaultTimeLocale "%F" (rpWhen rp))
-    , "assets"      A..= A.toJSON (rpAssets      rp)
-    , "liabilities" A..= A.toJSON (rpLiabilities rp)
-    , "income"      A..= A.toJSON (rpIncome      rp)
-    , "budget"      A..= A.toJSON (rpBudget      rp)
-    , "expenses"    A..= A.toJSON (rpExpenses    rp)
-    , "equity"      A..= A.object [ name A..= A.toJSON (toDouble bal) | (name, bal) <- rpEquity rp ]
-    , "history"     A..= A.toJSON (rpHistory rp)
+    , "assets"      A..= rpAssets      rp
+    , "liabilities" A..= rpLiabilities rp
+    , "income"      A..= rpIncome      rp
+    , "budget"      A..= rpBudget      rp
+    , "expenses"    A..= rpExpenses    rp
+    , "equity"      A..= A.object [ name A..= toDouble bal | (name, bal) <- rpEquity rp ]
+    , "history"     A..= rpHistory rp
+    , "commodities" A..= A.object [ name A..= cr | (name, cr) <- rpCommodities rp ]
     ]
 
 -- | A summary of an account.
 data AccountReport = AccountReport
-  { arName :: T.Text
+  { arName      :: T.Text
   , arBreakdown :: [SubaccountReport]
   } deriving Show
 
@@ -47,24 +53,34 @@ instance A.ToJSON AccountReport where
 
 -- | A subaccount of one account.
 data SubaccountReport = SubaccountReport
-  { srName :: T.Text
-  , srAmount :: Rational
-  , srTags :: [(T.Text, Int)]
-  , srBalTag :: T.Text
-  , srURL :: Maybe T.Text
-  , srHistory :: HistoryReport
+  { srName        :: T.Text
+  , srAmount      :: Rational
+  , srBalTag      :: T.Text
+  , srURL         :: Maybe T.Text
+  , srHistory     :: HistoryReport
+  , srCommodities :: [(T.Text, CommodityBalanceReport)]
   } deriving Show
 
 instance A.ToJSON SubaccountReport where
   toJSON sr = A.object $
-    [ "name"   A..= srName sr
-    , "amount" A..= toDouble (srAmount sr)
-    , "tags"   A..= [ A.object [ "tag" A..= tag, "share" A..= share ]
-                    | (tag, share) <- srTags sr
-                    ]
-    , "balance_tag" A..= srBalTag sr
-    , "history"     A..= A.toJSON (srHistory sr)
+    [ "name"     A..= srName sr
+    , "amount"   A..= toDouble (srAmount sr)
+    , "category" A..= srBalTag sr
+    , "history"  A..= srHistory sr
+    , "commodities" A..= A.object [ n A..= cr | (n, cr) <- srCommodities sr ]
     ] ++ maybe [] (\u -> [ "url" A..= u ]) (srURL sr)
+
+-- | Information about a commodity in an account.
+data CommodityBalanceReport = CommodityBalanceReport
+  { cbrWorth  :: Rational
+  , cbrAmount :: Rational
+  } deriving Show
+
+instance A.ToJSON CommodityBalanceReport where
+  toJSON cbr = A.object
+    [ "worth"  A..= toDouble (cbrWorth  cbr)
+    , "amount" A..= toDouble (cbrAmount cbr)
+    ]
 
 -- | A list of balances.
 newtype HistoryReport = HistoryReport
@@ -80,20 +96,20 @@ instance A.ToJSON HistoryReport where
 
 -- | A much simpler report than a full 'AccountReport'.
 data BasicReport = BasicReport
-  { brAccounts :: [(T.Text, DeltaReport)]
+  { brAccounts  :: [(T.Text, DeltaReport)]
   , brPriorDate :: C.Day
   } deriving Show
 
 instance A.ToJSON BasicReport where
   toJSON br = A.object
-    [ "accounts"   A..= A.object [ name A..= A.toJSON dr | (name, dr) <- brAccounts br ]
+    [ "accounts"   A..= A.object [ name A..= dr | (name, dr) <- brAccounts br ]
     , "prior_date" A..= T.pack (C.formatTime C.defaultTimeLocale "%F" (brPriorDate br))
     ]
 
 -- | A report about the current and prior states of an account
 data DeltaReport = DeltaReport
   { drCurrent :: Rational
-  , drPrior :: Rational
+  , drPrior   :: Rational
   , drHistory :: HistoryReport
   } deriving Show
 
@@ -102,7 +118,7 @@ instance A.ToJSON DeltaReport where
     [ "amount"  A..= toDouble (drCurrent dr)
     , "prior"   A..= toDouble (drPrior   dr)
     , "delta"   A..= toDouble (drCurrent dr - drPrior dr)
-    , "history" A..= A.toJSON (drHistory dr)
+    , "history" A..= drHistory dr
     ]
 
 -- | A report about a single transaction.
@@ -124,9 +140,20 @@ newtype DatedTransactionsReport = DatedTransactionsReport
 
 instance A.ToJSON DatedTransactionsReport where
   toJSON dtr = A.object
-    [ date A..= A.toJSON txns
+    [ date A..= txns
     | (day, txns) <- dtrValues dtr
     , let date = T.pack (C.formatTime C.defaultTimeLocale "%F" day)
+    ]
+
+-- | Information about a commodity.
+newtype CommodityReport = CommodityReport FC.CommodityConfig
+  deriving Show
+
+instance A.ToJSON CommodityReport where
+  toJSON (CommodityReport cc) = A.object $ catMaybes
+    [ ("name" A..=) <$> FC.cName cc
+    , ("url"  A..=) <$> FC.cURL  cc
+    , Just $ "allocation" A..= A.object [ n A..= w | (n, w) <- toList (FC.cAllocation cc) ]
     ]
 
 -- | Turn a 'Rational' into a 'Double'.  This is lossy!

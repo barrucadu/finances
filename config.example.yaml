@@ -1,109 +1,132 @@
 # <string>
+#
 # Path (relative to the location of this file, or absolute) to the
-# hledger journal. (optional)
+# hledger journal.  Optional.
 journal_file: ~/hledger.journal
 
-# The web server:
+# The web server configuration.
 http:
   # <int>
-  # Port to listen on:
+  #
+  # Port to listen on.
   port: 5000
   # <string>
+  #
   # Path (relative to the location of this file, or absolute) to
-  # static assets:
+  # static assets.
   static_dir: ./web
 
-# <[account]>
-# The assets charts:
-assets:
-  - name: Cavendish Online
-    # <[subaccount]>
-    breakdown:
-    - name: Marlborough UK Micro-Cap
-      # <string>
-      # The hledger account
-      account: assets:cavendish:MHMIA
-      # <string> OR <string -> int>
-      # The type of asset stored in this account.  Think "Cash",
-      # "Equities", "Bonds", "Property", ...
-      # (optional, defaults to "Cash")
-      tag: Equities
-      # <string>
-      # The category this goes under in the balance sheet
-      # (optional, defaults to "Current")
-      balance_tag: Investments
-      # <string>
-      # Link to more information (optional)
-      url: https://markets.ft.com/data/funds/tearsheet/summary?s=gb00b8f8yx59:gbx
+# The account tree configuration.
+tree:
+  # <string OR [string]>
+  #
+  # These accounts are considered asset accounts.  "*" may be used as
+  # a wildcard.  Defaults to "assets:*".
+  assets: assets:*:*
 
-    - name: Neptune Emerging Markets
-      account: assets:cavendish:NPMKA
-      tag: Equities
-      balance_tag: Investments
-      url: https://markets.ft.com/data/funds/tearsheet/summary?s=gb00b8j6sv12:gbp
+  # <string OR [string]>
+  #
+  # These accounts are considered to be equity accounts.  "*" may be
+  # used as a wildcard.  Defaults to "equity:*".
+  equity: equity:*
 
-    - name: Vanguard LifeStrategy 20%
-      account: assets:cavendish:VALEA
-      # If the tag is an object, the value in the account is split
-      # accordingly.
-      tag:
-        Equities: 20
-        Bonds:    80
-      balance_tag: Investments
-      url: https://markets.ft.com/data/funds/tearsheet/summary?s=gb00b4nxy349:gbp
+  # <string OR [string]>
+  #
+  # These accounts are considered to be expense accounts.  "*" may be
+  # used as a wildcard.  Defaults to "expenses:*".
+  expenses: expenses:*
 
-  - name: Nationwide
-    breakdown:
-      - account: assets:nationwide
+  # <string OR [string]>
+  #
+  # These accounts are considered to be income accounts.  "*" may be
+  # used as a wildcard.  Defaults to "income:*".
+  income: income:*
 
-  - name: Santander
-    breakdown:
-      - name: Main
-        account: assets:santander:main
-      - name: eSaver
-        account: assets:santander:esaver
+  # <string OR [string]>
+  #
+  # These accounts are considered to be liability accounts.  "*" may
+  # be used as a wildcard.  Defaults to "liabilities:*".
+  liabilities: liabilities:*
 
-# <[account]>
-# The liabilities:
-liabilities:
-  - name: Current
-    # <[subaccount]>
-    # The behaviour is slightly different to asset breakdowns:
-    #  - 'tag' is ignored.
-    #  - 'balance_tag' defaults to the name of the overall account
-    #    ("Current" here).
-    breakdown:
-      - name: Overdraft
-        account: liabilities:overdraft
+  # <string OR [string]>
+  #
+  # These accounts are considered to be envelope budget accounts.  "*"
+  # may be used as a wildcard.  Defaults to "budget:*".
+  budget: assets:cash:santander:current:budget:*
 
-  - name: Long Term
-    breakdown:
-      - name: Student Loan
-        account: liabilities:slc
+# <string -> (account OR string)>
+#
+# Information about accounts.  Keys are account names.  Each entry has
+# four fields:
+#
+#  - name: <string> a nice name.  Defaults to the bit after the last
+#    ":" in titlecase.
+#
+#  - url: <string> a URL for further information.  Optional.
+#
+#  - category: <string> where to file this in the balance sheet.  Has
+#    the following defaults:
+#    - assets:      "Current"
+#    - equity:      "Start of Period"
+#    - liabilities: "Current"
+#    - income:      "End of Period"
+#    - expenses:    "End of Period"
+#
+#    Those assets and liabilities filed under "Current" are used in
+#    the net worth calculation in the sidebar.
+#
+# Just giving the account name as a string is allowed as a short-hand,
+# which leaves all the other fields at their default values.
+#
+accounts:
+  "assets:cash:paypal": PayPal
+  "assets:cash:santander:current:budget:tfp food": TFP Food
+  "assets:cash:santander:esaver": eSaver
+  "assets:cash:santander:esaver:rainyday": Rainy Day
+  "assets:investments:cavendish":
+    name: Cavendish Online
+    category: Investments
+  "income:pta": PTA
+  "liabilities:slc":
+    name: Student Loans Company
+    category: Long Term
 
-# <account rules>
-# The income accounts:
-income:
-  # Account rules are one of:
-  #  - a list of account rules (tried in order and the first match used).
-  #  - a key "only" with an object whose keys are accounts and values names.
-  #  - a key "simple" with a prefix to match and remove.
-  #  - a null, which matches nothing.
-  - only:
-      "income:pta": PTA
-  - simple: income
+# <string -> (commodity OR string)>
+#
+# Information about commodities.  Keys are commodity names.  Each
+# entry has three fields:
+#
+#  - name: <string> a nice name.  Defaults to the commodity symbol.
+#
+#  - url: <string> a URL for further information.  Optional.
+#
+#  - allocation: <string OR (string -> int)> what this commodity is
+#    made up of.  If given as an object, the commodity is split into
+#    parts weighted by the given ints.  Defaults to "Cash".
+#
+# Just giving the commodity name as a string is allowed as a
+# short-hand, which leaves all the other fields at their default
+# values.
+#
+commodities:
+  MHMIA:
+    name: Marlborough UK Micro-Cap
+    url:  https://markets.ft.com/data/funds/tearsheet/summary?s=gb00b8f8yx59:gbx
+    allocation: Equities
 
-# <account rules>
-# The budget accounts:
-budget:
-  simple: assets:santander:main:budget
+  NPMKA:
+    name: Neptune Emerging Markets
+    url:  https://markets.ft.com/data/funds/tearsheet/summary?s=gb00b8j6sv12:gbp
+    allocation: Equities
 
-# <account rules>
-# The expense accounts:
-expenses:
-  simple: expenses
+  VALEA:
+    name: Vanguard LifeStrategy 20%
+    url:  https://markets.ft.com/data/funds/tearsheet/summary?s=gb00b4nxy349:gbp
+    allocation:
+      Equities: 80
+      Bonds:    20
 
-# <account rules>
-# The equity accounts:
-equity:
-  simple: equity
+  WIFCA:
+    name: CF Woodford Income Focus
+    url:  https://markets.ft.com/data/funds/tearsheet/summary?s=GB00BD9X6D51:gbx
+    allocation: Equities

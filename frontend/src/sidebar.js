@@ -34,14 +34,14 @@ function renderSidebarChart(data) {
 }
 
 // Sum an account report.
-function sumAccountReport(raw_data, balance_tag) {
+function sumAccountReport(raw_data, category) {
     let filtered_data = raw_data;
-    if (balance_tag !== undefined) {
+    if (category !== undefined) {
         filtered_data = [];
         for (let datum of raw_data) {
             filtered_data.push({
                 name: datum.name,
-                breakdown: datum.breakdown.filter(b => b.balance_tag == balance_tag)
+                breakdown: datum.breakdown.filter(b => b.category == category)
             });
         }
     }

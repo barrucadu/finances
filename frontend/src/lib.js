@@ -57,10 +57,11 @@ function renderFinancesFor(renderFinances, month=-1) {
 
 
 // Pretty-print an amount or delta.
-function strAmount(amount, showPlus=false) {
+function strAmount(amount, showPlus=false, showSymbol=true) {
     let sign = (amount > -0.01) ? (showPlus ? '+' : '') : '-';
     let amt = Math.abs(amount).toFixed(2);
-    return `${sign}£${amt}`;
+    let sym = showSymbol ? '£' : '';
+    return `${sign}${sym}${amt}`;
 }
 
 // Check if an amount if roughly equal to zero.
@@ -111,10 +112,10 @@ function gatherFromAccountReport(raw_data) {
         for (let i = 0; i < datum.breakdown.length; i ++) {
             let account = datum.breakdown[i];
             if (account.amount == 0) continue;
-            if (!(account.balance_tag in out)) {
-                out[account.balance_tag] = [];
+            if (!(account.category in out)) {
+                out[account.category] = [];
             }
-            out[account.balance_tag].push({ name: account.name, amount: account.amount });
+            out[account.category].push({ name: account.name, amount: account.amount });
         }
     }
     return out;
@@ -124,17 +125,6 @@ function gatherFromAccountReport(raw_data) {
 /*****************************************************************************
  * templates
  *****************************************************************************/
-
-
-// The legend tables.
-const TPL_LEGEND_TABLE = `
-{{#entry}}
-  {{>show_entry}}
-  {{#subentry}}
-    {{>show_entry}}
-  {{/subentry}}
-{{/entry}}
-`;
 
 // Partial for displaying a single tag in the tags legend.
 const TPL_PART_SHOW_TAG = `
