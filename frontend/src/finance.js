@@ -30,19 +30,72 @@ function legendItemClick(hider) {
     }
 }
 
-function renderAllocationChart(assets_data, commodities_data) {
-    let overallTotal = 0;
+// Render a two-ring pie chart where the outer doughnut is a breakdown
+// of the inner.
+function renderBreakdownPie(ele_id, hider, raw_data, category_series_name, category_tooltip, breakdown_series_name, breakdown_tooltip) {
+    let categoryData   = [];
+    let breakdownData  = [];
+    let categoryTotals = {};
+    let overallTotal   = 0;
 
+    for (let ckey in raw_data) {
+        let category      = raw_data[ckey];
+        let categoryTotal = Object.values(category).reduce((acc, b) => acc + b.worth, 0);
+        overallTotal += categoryTotal;
+
+        if(zeroish(categoryTotal)) continue;
+
+        categoryData.push({
+            name: ckey,
+            y: categoryTotal,
+            color: colour(ckey),
+            visible: !(ckey in hider)
+        });
+
+        for (let bkey in category) {
+            let breakdown = category[bkey]
+
+            if (zeroish(breakdown.worth)) continue;
+
+            breakdown.name       = bkey;
+            breakdown.y          = breakdown.worth;
+            breakdown.color      = colour(bkey);
+            breakdown.owner      = ckey;
+            breakdown.ownerTotal = categoryTotal;
+            breakdown.visible    = !(ckey in hider);
+
+            breakdownData.push(breakdown);
+        }
+    }
+
+    Highcharts.chart(ele_id, {
+        chart: { type: 'pie' },
+        series: [{
+            name: category_series_name,
+            data: categoryData,
+            size: '60%',
+            dataLabels: { enabled: false },
+            showInLegend: true,
+            tooltip: { pointFormatter: category_tooltip(overallTotal) },
+            point: { events: { legendItemClick: legendItemClick(hider) } }
+        },{
+            name: breakdown_series_name,
+            data: breakdownData,
+            size: '80%',
+            innerSize: '60%',
+            dataLabels: { enabled: true },
+            tooltip: { pointFormatter: breakdown_tooltip }
+        }]
+    });
+}
+
+function renderAllocationChart(assets_data, commodities_data) {
     let commodityWorthTotals  = {};
     let commodityAmountTotals = {};
-    for (let akey in assets_data) {
-        let asset = assets_data[akey];
-        let assetAmount = asset.breakdown.reduce((acc, d) => acc + d.amount, 0);
-        overallTotal += assetAmount;
-
-        for (let account of asset.breakdown) {
-            for (let ckey in account.commodities) {
-                let commodity = account.commodities[ckey];
+    for (let asset of Object.values(assets_data)) {
+        for (let breakdown of asset.breakdown) {
+            for (let ckey in breakdown.commodities) {
+                let commodity = breakdown.commodities[ckey];
 
                 if (!(ckey in commodityWorthTotals)) {
                     commodityWorthTotals[ckey]  = 0;
@@ -55,104 +108,53 @@ function renderAllocationChart(assets_data, commodities_data) {
         }
     }
 
-    let allocationTotals = { 'Cash': 0 };
-    let allocationData   = [];
-    let commodityData    = [];
-    for (let ckey in commodityWorthTotals) {
-        let commodityWorth = commodityWorthTotals[ckey];
-        if (ckey in commodities_data) {
-            let totalShare = Object.values(commodities_data[ckey].allocation).reduce((acc, s) => acc + s, 0);
-            for (let akey in commodities_data[ckey].allocation) {
-                let share = commodities_data[ckey].allocation[akey];
-                if (!(akey in allocationTotals)) {
-                    allocationTotals[akey] = 0;
-                }
-                allocationTotals[akey] += commodityWorth * share / totalShare;
-            }
-        } else {
-            allocationTotals['Cash'] += commodityWorth;
+    let allocations = { 'Cash': true }
+    for (let commodity of Object.values(commodities_data)) {
+        for (let akey in commodity.allocation) {
+            allocations[akey] = true;
         }
     }
-    for (let akey in allocationTotals) {
-        let amount = allocationTotals[akey];
 
-        if (zeroish(amount)) continue;
-
-        allocationData.push({
-            name: akey,
-            y: amount,
-            color: colour(akey),
-            visible: !(akey in hidden_allocations)
-        });
-
+    let data = {};
+    for (let akey in allocations) {
+        data[akey] = {};
         for (let ckey in commodityWorthTotals) {
-            let commodityWorth  = commodityWorthTotals[ckey];
-            let commodityAmount = commodityAmountTotals[ckey];
+            function push (portion) {
+                let name = (ckey in commodities_data && 'name' in commodities_data[ckey]) ? commodities_data[ckey].name : ckey;
+                data[akey][name] = {
+                    worth: commodityWorthTotals[ckey] * portion,
+                    amount: commodityAmountTotals[ckey] * portion,
+                    ckey: ckey
+                };
+            }
 
             if (ckey in commodities_data) {
                 let totalShare = Object.values(commodities_data[ckey].allocation).reduce((acc, s) => acc + s, 0);
                 if (akey in commodities_data[ckey].allocation) {
                     let share = commodities_data[ckey].allocation[akey];
-                    commodityData.push({
-                        name: (ckey in commodities_data && 'name' in commodities_data[ckey]) ? commodities_data[ckey].name : ckey,
-                        y: commodityWorth * share / totalShare,
-                        color: colour(ckey),
-                        ckey: ckey,
-                        amount: commodityAmount * share / totalShare,
-                        owner: akey,
-                        visible: !(akey in hidden_allocations)
-                    });
+                    push(share / totalShare);
                 }
             } else if (akey == 'Cash') {
-                commodityData.push({
-                    name: (ckey in commodities_data && 'name' in commodities_data[ckey]) ? commodities_data[ckey].name : ckey,
-                    y: commodityWorth,
-                    color: colour(ckey),
-                    ckey: ckey,
-                    amount: commodityAmount,
-                    owner: 'Cash',
-                    visible: !('Cash' in hidden_allocations)
-                });
+                push(1);
             }
         }
     }
 
-    Highcharts.chart('allocation_chart_container', {
-        chart: { type: 'pie' },
-        series: [{
-            name: 'Allocation',
-            data: allocationData,
-            size: '60%',
-            dataLabels: { enabled: false },
-            showInLegend: true,
-            tooltip: {
-                pointFormatter: function() {
-                    return `${strAmount(this.y)} (${(100*this.y/overallTotal).toFixed(2)}% of overall allocation)<br/>`;
-                }
-            },
-            point: {
-                events: { legendItemClick: legendItemClick(hidden_allocations) }
+    renderBreakdownPie(
+        'allocation_chart_container', hidden_allocations, data,
+        'Allocation', overallTotal => function () {
+            return `${strAmount(this.y)} (${(100*this.y/overallTotal).toFixed(2)}% of overall allocation)<br/>`;
+        },
+        'Commodities', function () {
+            let naked = strAmount(this.amount, false, false);
+            let worth = (this.ckey == '£') ? '' : `(worth ${strAmount(this.y)})`;
+            let fraction = (100 * this.worth / this.ownerTotal).toFixed(2);
+            if (this.ckey.match(/^[0-9a-zA-Z]+$/)) {
+                return `${naked} ${this.ckey} ${worth} (${fraction}% of ${this.owner})<br/>`;
+            } else {
+                return `${this.ckey}${naked} ${worth} (${fraction}% of ${this.owner})<br/>`;
             }
-        },{
-            name: 'Commodities',
-            data: commodityData,
-            size: '80%',
-            innerSize: '60%',
-            dataLabels: { enabled: true },
-            tooltip: {
-                pointFormatter: function() {
-                    let naked = strAmount(this.amount, false, false);
-                    let worth = (this.ckey == '£') ? '' : `(worth ${strAmount(this.y)})`;
-                    let fraction = (100 * this.y / allocationTotals[this.owner]).toFixed(2);
-                    if (this.ckey.match(/^[0-9a-zA-Z]+$/)) {
-                        return `${naked} ${this.ckey} ${worth} (${fraction}% of ${this.owner})<br/>`;
-                    } else {
-                        return `${this.ckey}${naked} ${worth} (${fraction}% of ${this.owner})<br/>`;
-                    }
-                }
-            }
-        }]
-    });
+        });
 }
 
 function renderAssetsHistoricalChart(raw_assets_data) {
@@ -324,73 +326,25 @@ function renderCashflowChart(income_data, expense_data) {
     });
 }
 
-function renderAssetsSnapshotChart(raw_assets_data) {
-    let assetData    = [];
-    let accountData  = [];
-    let assetTotals  = {};
-    let overallTotal = 0;
+function renderAssetsSnapshotChart(raw_data) {
+    let data = {};
 
-    for (let key in raw_assets_data) {
-        let asset = raw_assets_data[key];
-        let assetAmount = asset.breakdown.reduce((acc, d) => acc + d.amount, 0);
-        overallTotal += assetAmount;
-
-        if(zeroish(assetAmount)) continue;
-
-        assetData.push({
-            name: asset.name,
-            y: assetAmount,
-            color: colour(asset.name),
-            visible: !(asset.name in hidden_assets)
-        });
-
-        for (let i = 0; i < asset.breakdown.length; i ++) {
-            let account = asset.breakdown[i];
-            let amount = account.amount;
-
-            if (zeroish(amount)) continue;
-
-            accountData.push({
-                name: account.name,
-                y: amount,
-                color: colour((account.name == asset.name) ? asset.name : `${asset.name} (${account.name})`),
-                asset: {name: asset.name, amount: assetAmount},
-                owner: asset.name,
-                visible: !(asset.name in hidden_assets)
-            });
+    for (let akey in raw_data) {
+        let asset = raw_data[akey];
+        data[asset.name] = {};
+        for (let breakdown of asset.breakdown) {
+            data[asset.name][breakdown.name] = { worth: breakdown.amount };
         }
     }
 
-    Highcharts.chart('balances_chart_container', {
-        chart: { type: 'pie' },
-        series: [{
-            name: 'Accounts',
-            data: assetData,
-            size: '60%',
-            dataLabels: { enabled: false },
-            showInLegend: true,
-            tooltip: {
-                pointFormatter: function() {
-                    return `${strAmount(this.y)} (${(100*this.y/overallTotal).toFixed(2)}% of overall portfolio)<br/>`;
-                }
-            },
-            point: {
-                events: { legendItemClick: legendItemClick(hidden_assets) }
-            }
-        }, {
-            name: 'Breakdown',
-            data: accountData,
-            size: '80%',
-            innerSize: '60%',
-            id: 'versions',
-            dataLabels: { enabled: true },
-            tooltip: {
-                pointFormatter: function() {
-                    return `${strAmount(this.y)} (${(100*this.y/this.asset.amount).toFixed(2)}% of ${this.asset.name})<br/>`;
-                }
-            }
-        }]
-    });
+    renderBreakdownPie(
+        'balances_chart_container', hidden_assets, data,
+        'Accounts', overallTotal => function () {
+            return `${strAmount(this.y)} (${(100*this.y/overallTotal).toFixed(2)}% of overall portfolio)<br/>`;
+        },
+        'Breakdown', function () {
+            return `${strAmount(this.y)} (${(100*this.y/this.ownerTotal).toFixed(2)}% of ${this.owner})<br/>`;
+        });
 }
 
 function renderCharts(data) {
