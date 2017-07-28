@@ -78,7 +78,7 @@ function colour(str) {
     }
     hash = Math.abs(hash);
 
-    return `rgb(${(hash * 37) % 255}, ${(hash * 131) % 255}, ${(hash * 239) % 255})`
+    return `rgb(${(hash * 37 * str.length) % 255}, ${(hash * 131 * str.length) % 255}, ${(hash * 239 * str.length) % 255})`
 }
 
 // Default values for charts
