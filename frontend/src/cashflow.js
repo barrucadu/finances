@@ -1,23 +1,44 @@
+// Common configuration for column tooltips.  For some reason this doesn't work when set as a global default.
+const columnTooltip = {
+    shared: true,
+    useHTML: true,
+    headerFormat: '<span style="font-size:10px">{point.key}</span><table class="tooltip">',
+    footerFormat: '</table>',
+    pointFormatter: function ()
+    {
+        return `<tr><td style="color:${this.series.color}; font-weight:bold">${this.series.name}</td><td class="right">${strAmount(this.y)}</td></tr>`;
+    }
+};
+
+// Condense an account history into 12 monthly totals
+function monthise(history_data) {
+    let out = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+
+    let last = 0;
+    for (let entry of history_data) {
+        let m = new Date(Date.parse(entry.date)).getMonth();
+        let amount = Math.abs(entry.amount);
+        out[m] += amount - last;
+        last = amount;
+    }
+
+    return out;
+}
+
 function renderCashflowChart(income_data, expense_data) {
     function gather(raw_data) {
-        let out     = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-        let sources = Object.keys(raw_data.accounts);
-        for (let i = 0; i < sources.length; i ++) {
-            let source = sources[i];
-            let data   = raw_data.accounts[source];
-            let last   = 0;
-            for (let j = 0; j < data.history.length; j ++) {
-                let m = new Date(Date.parse(data.history[j].date)).getMonth();
-                let amount = Math.abs(data.history[j].amount);
-                out[m] += amount - last;
-                last = amount;
+        let out = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        for (let data of Object.values(raw_data.accounts)) {
+            let summary = monthise(data.history);
+            for (let j = 0; j < 12; j ++) {
+                out[j] += summary[j];
             }
         }
         return out;
     }
 
-    let incomes      = gather((income_data  == undefined) ? cached_data.income   : income_data);
-    let expenditures = gather((expense_data == undefined) ? cached_data.expenses : expense_data);
+    let incomes      = gather(income_data);
+    let expenditures = gather(expense_data);
 
     let balances = [];
     let cur      = 0;
@@ -26,41 +47,62 @@ function renderCashflowChart(income_data, expense_data) {
         balances.push(cur);
     }
 
-    function pointFormatter() { return `<span style="color:${this.series.color}; font-weight:bold">${this.series.name}</span> ${strAmount(this.y)}<br/>`; }
     let greenColour = 'rgb(100,200,100)';
     let redColour   = 'rgb(250,100,100)';
     Highcharts.chart('cashflow_chart_container', {
-        yAxis: { title: { text: '' } },
-        xAxis: { categories: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] },
-        tooltip: { shared: true },
+        chart: { type: 'column' },
+        xAxis: { categories: MONTH_NAMES, crosshair: true },
+        yAxis: { title: { text: '' }, labels: { formatter: function () { return strAmount(this.value); } } },
+        tooltip: columnTooltip,
         series: [{
-            type: 'column',
             name: 'Income',
             color: greenColour,
-            data: incomes,
-            tooltip: { pointFormatter: pointFormatter }
+            data: incomes
         }, {
-            type: 'column',
             name: 'Expenditure',
             color: redColour,
-            data: expenditures,
-            tooltip: { pointFormatter: pointFormatter }
+            data: expenditures
         }, {
             type: 'spline',
-            name: 'Total Change',
+            name: 'Cumulative Change',
             data: balances,
             showPlus: true,
             color: 'rgb(100,100,250)',
             tooltip: {
                 pointFormatter: function () {
-                    let tag = `<span style="color:${this.series.color}; font-weight:bold">${this.series.name}</span>`;
+                    let tag = `<td style="color:${this.series.color}; font-weight:bold">${this.series.name}</td>`;
                     let amount = strAmount(this.y, true);
                     let col = zeroish(this.y) ? 'black' : ((this.y < 0) ? redColour : greenColour);
-                    return `${tag}  <span style="color:${col}">${amount}</span><br/>`;
+                    return `<tr>${tag}<td style="color:${col}" class="right">${amount}</td></tr>`;
                 }
             }
         }]
     });
+}
+
+function renderBreakdownChart(ele_id, raw_data) {
+    Highcharts.chart(ele_id, {
+        chart: { type: 'column' },
+        xAxis: { categories: MONTH_NAMES, crosshair: true },
+        yAxis: { title: { text: '' }, min: 0, labels: { formatter: function () { return strAmount(this.value); } } },
+        tooltip: columnTooltip,
+        series: Object.keys(raw_data.accounts).sort().map(k => {
+            return {
+                name: k,
+                color: colour(k),
+                data: monthise(raw_data.accounts[k].history).map(x => zeroish(x) ? NaN : x)
+            };
+        })
+    });
+}
+
+function renderCharts(income_data, expense_data) {
+    if (income_data  == undefined) { income_data  = cached_data.income; }
+    if (expense_data == undefined) { expense_data = cached_data.expenses; }
+
+    renderCashflowChart(income_data, expense_data);
+    renderBreakdownChart('expenses_breakdown_chart_container', expense_data);
+    renderBreakdownChart('income_breakdown_chart_container',   income_data);
 }
 
 window.onload = () => {
@@ -71,12 +113,12 @@ window.onload = () => {
     renderSidebar();
 
     // Fetch the data
-    renderFinancesFor((month, data) => renderCashflowChart(data.income, data.expenses));
+    renderFinancesFor((month, data) => renderCharts(data.income, data.expenses));
 
     // Set up keybindings
     document.onkeyup = function(e) {
         if (e.key == 'r') {
-            renderCashflowChart();
+            renderCharts();
         }
     }
 };

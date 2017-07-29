@@ -70,6 +70,15 @@ tr + tr.sub td {
     border-top: 1px solid #eee;
 }
 
+table.tooltip {
+    font-size: 0.7rem;
+}
+
+table.tooltip td {
+    padding: 0.2em 0.3em;
+    border: none;
+}
+
 .note {
     font-size: 1rem;
     text-decoration: none;
@@ -202,6 +211,10 @@ div {
 .highcharts-container {
     margin: 0;
     padding: 0;
+}
+
+.claustrophobic {
+    margin-top: 3rem;
 }
 
 /* **** sidebar ************************************************************ */
