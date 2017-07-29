@@ -83,7 +83,10 @@ function renderBreakdownPie(ele_id, hider, raw_data, category_series_name, categ
             data: breakdownData,
             size: '80%',
             innerSize: '60%',
-            dataLabels: { enabled: true },
+            dataLabels: {
+                enabled: true,
+                formatter: function() { return (this.percentage >= 0.5) ? this.point.name : null; }
+            },
             tooltip: { pointFormatter: breakdown_tooltip }
         }]
     });
