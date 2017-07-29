@@ -95,6 +95,7 @@ const TPL_SIDEBAR = `
   <ul>
     <li><a href="/">Summary</a></li>
     <li><a href="/balancesheet.html">Balance Sheet</a></li>
+    <li><a href="/cashflow.html">Cashflow</a></li>
     <li><a href="/history.html">History</a></li>
   </ul>
 </nav>
