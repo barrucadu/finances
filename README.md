@@ -47,14 +47,23 @@ Usage
 
 ### Keybindings
 
+**Summary:**
+
 - `left`:  go to prior month (if not January)
 - `right`: go to next month (if not December)
 - `r`: re-draw charts
 - `s`: show asset summary
 - `h`: show historical balances
-- `c`: show monthly cashflow
-- `b`: show a balance sheet
+
+**Balance Sheet:**
+
+- `left`:  go to prior month (if not January)
+- `right`: go to next month (if not December)
+
+**Cashflow:**
+
+- `r`: re-draw charts
 
 ### Clicky Things
 
-- Account names in the assets legend
+- Names in chart legends
