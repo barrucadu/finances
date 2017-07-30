@@ -282,8 +282,7 @@ div {
 
 @font-face {
     font-family: 'CallunaSansRegular';
-    src: url('CallunaSansRegular-webfont.woff2') format('woff2'),
-         url('CallunaSansRegular-webfont.woff') format('woff');
+    src: local('Calluna Sans'), local('CallunaSans'), url('/font/CallunaSansRegular.woff2') format('woff2');
     font-weight: normal;
     font-style: normal;
 }
@@ -292,5 +291,5 @@ div {
     font-family: 'Noto Serif';
     font-style: normal;
     font-weight: 400;
-    src: local('Noto Serif'), local('NotoSerif'), url('NotoSerifRegular-webfont.woff2') format('woff2');
+    src: local('Noto Serif'), local('NotoSerif'), url('/font/NotoSerifRegular.woff2') format('woff2');
 }
