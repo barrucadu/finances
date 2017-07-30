@@ -80,8 +80,8 @@ run cfg = W.runEnv (FC.port . FC.http $ cfg) $ serveStatic (\req respond -> resp
             in C.fromGregorian y m d
           _ -> today
     pure . (\(c, v) -> W.responseLBS c [] v) $ case W.pathInfo req of
-      ["data"]    -> (W.ok200, A.encode . A.toJSON . dateReport cfg date  $ H.jtxns journal)
-      ["history"] -> (W.ok200, A.encode . A.toJSON . historyReport . Left $ H.jtxns journal)
+      ["data"]    -> (W.ok200, A.encode . A.toJSON . dateReport    cfg date   $ H.jtxns journal)
+      ["history"] -> (W.ok200, A.encode . A.toJSON . historyReport cfg . Left $ H.jtxns journal)
       _ -> (W.notFound404, "not found")
 
 -- | Get the data from the default hledger journal for the given date.
@@ -93,13 +93,13 @@ financeDataFor cfg today =
 dateReport :: FC.Config -> C.Day -> [H.Transaction] -> FR.Report
 dateReport cfg today txns = FR.Report
     { FR.rpWhen        = today
-    , FR.rpAssets      = map (accountReport cfg) assetAccounts
-    , FR.rpLiabilities = map (accountReport cfg) liabilityAccounts
+    , FR.rpAssets      = map accountReport assetAccounts
+    , FR.rpLiabilities = map accountReport liabilityAccounts
     , FR.rpIncome      = balanceFrom monthStart    incomeAccounts
     , FR.rpBudget      = balanceFrom (const epoch) budgetAccounts
     , FR.rpExpenses    = balanceFrom monthStart    expenseAccounts
     , FR.rpEquity      = map (accountName cfg &&& currentBalance) equityAccounts
-    , FR.rpHistory     = historyReport (Right $ takeWhile (\db -> monthYear (dbDay db) == monthYear today) uptonow)
+    , FR.rpHistory     = historyReport cfg (Right $ takeWhile (\db -> monthYear (dbDay db) == monthYear today) uptonow)
     , FR.rpCommodities = map (second FR.CommodityReport) (FC.commodities cfg)
     }
   where
@@ -112,7 +112,7 @@ dateReport cfg today txns = FR.Report
     liabilityAccounts = matching False (FC.liabilityAccounts . FC.tree $ cfg) accounts
 
     -- todo: factor this out to a new top-level definition
-    accountReport cfg account = FR.AccountReport
+    accountReport account = FR.AccountReport
       { FR.arName      = accountName cfg account
       , FR.arBreakdown =
           [ FR.SubaccountReport
@@ -156,7 +156,7 @@ dateReport cfg today txns = FR.Report
     getBalances    = dbBalances . headOr initial
     getCommodities = dbCommodities . headOr initial
 
-    balancesAsc = dailyBalances txns
+    balancesAsc = dailyBalances cfg txns
     balances  = reverse balancesAsc
     uptonow   = dropWhile (\db -> dbDay db > today)     balances
     uptoprior = dropWhile (\db -> dbDay db > lastmonth) uptonow
@@ -165,8 +165,8 @@ dateReport cfg today txns = FR.Report
     epoch     = C.fromGregorian 1970 1 1
 
 -- | Get the transaction history.
-historyReport :: Either [H.Transaction] [DailyBalance] -> FR.DatedTransactionsReport
-historyReport txnbals = FR.DatedTransactionsReport
+historyReport :: FC.Config -> Either [H.Transaction] [DailyBalance] -> FR.DatedTransactionsReport
+historyReport cfg txnbals = FR.DatedTransactionsReport
     [ ( dbDay bal
       , [ FR.TransactionReport { FR.trTitle = txntitle, FR.trDelta = assetDelta }
         | (txntitle, txndeltas) <- reverse (dbTxns bal)
@@ -178,7 +178,7 @@ historyReport txnbals = FR.DatedTransactionsReport
   where
     balances = case txnbals of
       Right bals -> bals
-      Left txns -> reverse (dailyBalances txns)
+      Left txns -> reverse (dailyBalances cfg txns)
 
 
 -------------------------------------------------------------------------------
@@ -196,10 +196,10 @@ dbBalances db = (sum . map fst . M.elems) <$> dbCommodities db
 
 -- | Get the final balance after every day, and all the transaction
 -- deltas on that day.
-dailyBalances :: [H.Transaction] -> [DailyBalance]
-dailyBalances = foldr squish [] . snd . mapAccumL process M.empty . sortOn H.tdate where
+dailyBalances :: FC.Config -> [H.Transaction] -> [DailyBalance]
+dailyBalances cfg = foldr squish [] . snd . mapAccumL process M.empty . sortOn H.tdate where
   process comms txn =
-    let cdeltas = toDeltas txn
+    let cdeltas = toDeltas cfg txn
         bdeltas = (sum . map fst . M.elems) <$> cdeltas
         comms'  = M.unionWith (M.unionWith (\(a,b) (c,d) -> (a+c, b+d))) comms cdeltas
     in (comms', (H.tdate txn, H.tdescription txn, comms', bdeltas))
@@ -217,14 +217,16 @@ dailyBalances = foldr squish [] . snd . mapAccumL process M.empty . sortOn H.tda
 
 -- | Produce a collection of commodity-level balance changes from a
 -- transaction.
-toDeltas :: H.Transaction -> M.Map T.Text (M.Map T.Text (Rational, Rational))
-toDeltas txn =
+toDeltas :: FC.Config -> H.Transaction -> M.Map T.Text (M.Map T.Text (Rational, Rational))
+toDeltas cfg txn =
     let postings = concatMap explodeAccount (H.tpostings txn)
         accounts = nub (map H.paccount postings)
+        val a = fromMaybe (error ("amount which reduced to non-default commodity: " ++ show a)) (value cfg a)
+        qty   = toRational . H.aquantity
     in M.fromList [ (a, M.unionsWith (\(a,b) (c,d) -> (a+c, b+d)) cs)
                   | a <- accounts
                   , let ps  = filter ((==a) . H.paccount) postings
-                  , let cs = [ M.singleton (H.acommodity a) (value a, toRational (H.aquantity a))
+                  , let cs = [ M.singleton (H.acommodity a) (val a, qty a)
                              | H.Mixed [a] <- map H.pamount ps
                              ]
                   ]
@@ -238,12 +240,14 @@ explodeAccount p =
   ]
 
 -- | Get the value of an 'H.Amount' as a 'Rational'.
-value :: H.Amount -> Rational
-value (H.Amount "£" q _ _) = toRational q
-value (H.Amount _   q p _) = case p of
-  H.TotalPrice a -> value a
-  H.UnitPrice  a -> toRational q * value a
-  H.NoPrice -> 0
+value :: FC.Config -> H.Amount -> Maybe Rational
+value cfg = go where
+  go (H.Amount c q p _)
+    | c == FC.defcommodity cfg = Just (toRational q)
+    | otherwise = case p of
+        H.TotalPrice a -> go a
+        H.UnitPrice  a -> (toRational q *) <$> go a
+        H.NoPrice -> Nothing
 
 -- | Get the head of a list, or a default value.
 headOr :: a -> [a] -> a

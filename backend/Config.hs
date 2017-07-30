@@ -17,16 +17,18 @@ import           System.FilePath     (FilePath)
 
 -- | The parsed configuration file.
 data Config = Config
-  { journalPath :: Maybe FilePath
-  , http        :: HTTPConfig
-  , tree        :: TreeConfig
-  , accounts    :: [(T.Text, AccountConfig)]
-  , commodities :: [(T.Text, CommodityConfig)]
+  { journalPath  :: Maybe FilePath
+  , defcommodity :: T.Text
+  , http         :: HTTPConfig
+  , tree         :: TreeConfig
+  , accounts     :: [(T.Text, AccountConfig)]
+  , commodities  :: [(T.Text, CommodityConfig)]
   } deriving Show
 
 instance Y.FromJSON Config where
   parseJSON (Y.Object o) = Config
     <$> o Y..:? "journal_file"
+    <*> o Y..:  "default_commodity"
     <*> (Y.parseJSON =<<  o Y..:  "http")
     <*> (Y.parseJSON =<< (o Y..:? "tree" Y..!= Y.Null))
     <*> fmap HM.toList (Y.parseJSON =<< (o Y..:? "accounts"    Y..!= Y.Null))

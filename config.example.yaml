@@ -4,6 +4,23 @@
 # hledger journal.  Optional.
 journal_file: ~/hledger.journal
 
+# <string>
+#
+# The default commodity.  Currently only postings which have a value
+# in this commodity are supported.  Let's say your default commodity
+# is "£", this means all of your postings must have one of these three
+# forms:
+#
+#   - "account  £xxx"
+#   - "account  xxx @ £yyy"
+#   - "account  xxx @@ £yyy"
+#
+# So if you have non-default commodities, all you can do is buy or
+# sell them with your default commodity.  Postings which do not
+# mention your default commodity at all will just cause the server to
+# throw an error, sorry!
+default_commodity: £
+
 # The web server configuration.
 http:
   # <int>
