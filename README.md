@@ -18,9 +18,9 @@ things that accidentally don't work:
 
     ```
     2017/07/30 I am very international and have multiple currencies
-        accounts:cash:paypal  -20 GBP
-        accounts:cash:paypal  -10 EUR
-        accounts:cash:bank:checking
+        assets:cash:paypal  -20 GBP
+        assets:cash:paypal  -10 EUR
+        assets:cash:bank:checking
     ```
 
 2. Postings which do not involve your *default commodity* (see the
@@ -30,7 +30,7 @@ things that accidentally don't work:
      ```
      2017/07/30 I am currently in Canada
          expenses:syrup  30 CAD
-         accounts:cash:wallet
+         assets:cash:wallet
      ```
 
      On the other hand, if I paid with my UK debit card which did the
@@ -39,7 +39,7 @@ things that accidentally don't work:
      ```
      2017/07/30 I am currently in Canada
          expenses:syrup  30 CAD @@ £19
-         accounts:cash:bank:checking
+         assets:cash:bank:checking
      ```
 
 3. Asset or expense accounts with negative balances; liability or
