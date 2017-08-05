@@ -1,9 +1,6 @@
 // Month names
 const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
-// The visible month, if the current page allows time scrolling.
-var visible_month = 0;
-
 // The latest retrieved data.
 var cached_data = undefined;
 
@@ -11,6 +8,20 @@ var cached_data = undefined;
 /*****************************************************************************
  * functions
  *****************************************************************************/
+
+// Render the navbar
+function navbar(page) {
+    document.getElementById('navbar').innerHTML = Mustache.render(TPL_NAVBAR, {
+        entry: [
+            { title: 'Summary',             url: '/',                  active: page == 'summary',      icon: 'home' },
+            { title: 'Balance Sheet',       url: '/balancesheet.html', active: page == 'balancesheet', icon: 'bank' },
+            { title: 'Cashflow',            url: '/cashflow.html',     active: page == 'cashflow',     icon: 'balance-scale' },
+            { title: 'Transaction History', url: '/history.html',      active: page == 'history',      icon: 'list' },
+        ]
+    });
+
+    $('[data-toggle="tooltip"]').tooltip();
+}
 
 // Make an ajax request and do something with the result
 function ajax(url, cb) {
@@ -25,22 +36,6 @@ function ajax(url, cb) {
     httpRequest.send();
 }
 
-// Render finances for the end of last month, if the current page
-// allows time scrolling.
-function renderFinancesForLastMonth(renderFinances) {
-    if (visible_month > 1) {
-        renderFinancesFor(renderFinances, visible_month - 1);
-    }
-}
-
-// Render finances for the end of next month, if the current page
-// allows time scrolling.
-function renderFinancesForNextMonth(renderFinances) {
-    if (visible_month < 12) {
-        renderFinancesFor(renderFinances, visible_month + 1);
-    }
-}
-
 // Render finances for a given month, if the current page allows time
 // scrolling.
 function renderFinancesFor(renderFinances, month=-1) {
@@ -48,9 +43,8 @@ function renderFinancesFor(renderFinances, month=-1) {
         month = new Date().getMonth()+1
     }
 
-    ajax(`/data?month=${month}`, data => {
-        visible_month = month;
-        cached_data   = data;
+    ajax(`/data?month=${month+1}`, data => {
+        cached_data = data;
         renderFinances(month, data);
     });
 }
@@ -58,7 +52,7 @@ function renderFinancesFor(renderFinances, month=-1) {
 
 // Pretty-print an amount or delta.
 function strAmount(amount, showPlus=false, showSymbol=true) {
-    let sign = (amount > -0.01) ? (showPlus ? '+' : '') : '-';
+    let sign = (amount > -0.01) ? ((amount > 0 && showPlus) ? '+' : '') : '-';
     let amt = Math.abs(amount).toFixed(2);
     let sym = showSymbol ? '£' : '';
     return `${sign}${sym}${amt}`;
@@ -121,57 +115,37 @@ function gatherFromAccountReport(raw_data) {
     return out;
 }
 
+// Manage the month picker
+function monthpicker(cb) {
+    let month = new Date().getMonth();
+    let matches = document.querySelectorAll('[data-month-picker]');
+
+    for (let ele of matches) {
+        let monthlist = document.createElement('div');
+        monthlist.className = 'dropdown-menu';
+
+        for (let i = 0; i < MONTH_NAMES.length; i ++) {
+            let link = document.createElement('a');
+            link.className = 'dropdown-item';
+            link.href = '#';
+            link.onclick = () => cb(i, ele);
+            link.innerText = MONTH_NAMES[i];
+            monthlist.appendChild(link);
+        }
+
+        ele.appendChild(monthlist);
+
+        cb(month, ele);
+    }
+}
+
 
 /*****************************************************************************
  * templates
  *****************************************************************************/
 
-// Partial for displaying a single tag in the tags legend.
-const TPL_PART_SHOW_TAG = `
-<tr>
-  <td class="left">
-    <span title="{{percentage}}% of overall allocation">{{amount}}</span>
-  </td>
-  <td class="right">{{tag}}</td>
-  <td class="colour" style="background-color: {{colour}}">
-    <span></span>
-  </td>
-</tr>
-`;
-
-// Partial for displaying a single account in the balances legend.
-const TPL_PART_SHOW_ACCOUNT = `
-<tr class="{{#name}}sub{{/name}} {{#hidden}}hidden{{/hidden}}">
-  <td class="colour" style="background-color: {{colour}}">
-    <span></span>
-  </td>
-  {{#subcolour}}
-    <td class="colour" style="background-color: {{subcolour}}">
-      <span></span>
-    </td>
-  {{/subcolour}}
-  <td {{^subcolour}}colspan="2"{{/subcolour}}>
-    {{^name}}
-      <span onclick="{{onclick}}">{{asset}}</span>
-    {{/name}}{{#name}}
-      <span onclick="{{onclick}}">{{name}}</span>
-    {{/name}}
-    {{#url}}
-      <a class="note" href="{{url}}" title="More information...">(?)</a>
-    {{/url}}
-  </td>
-  <td class="right">
-    {{^name}}
-      <span title="{{percentage}}% of overall portfolio">{{amount}}</span>
-    {{/name}}{{#name}}
-      <span title="{{percentage}}% of {{asset}}">{{amount}}</span>
-    {{/name}}
-  </td>
-</tr>
-`;
-
 // The "assets", "equity", and "liabilities" balance sheet tables.
-const TPL_BALANCE_TABLE = `
+const TPL_BALANCE_TABLE_BODY = `
 {{#category}}
   <tr class="category">
     <th colspan="2">{{title}}</th>
@@ -179,60 +153,67 @@ const TPL_BALANCE_TABLE = `
   {{#entry}}
     <tr>
       <td>{{name}}</td>
-      <td class="right">{{amount}}</td>
+      <td class="text-right">{{amount}}</td>
     </tr>
   {{/entry}}
 {{/category}}
-<tfoot>
-  <tr>
-    <th class="left">{{foot.caption}}</th>
-    <td class="right">{{foot.value}}</td>
-  </tr>
-</tfoot>
+`;
+const TPL_BALANCE_TABLE_FOOT = `
+<tr>
+  <th>{{caption}}</th>
+  <td class="text-right">{{value}}</td>
+</tr>
 `;
 
 // The "income", "budget", and "expenses" summary tables.
-const TPL_SUMMARY_TABLE = `
-<tbody>
-  {{#entry}}
-    <tr>
-      <td>{{source}}</td>
-      <td class="{{#good}}good{{/good}}{{^good}}bad{{/good}} right">{{delta}}</td>
-      <td class="right">{{amount}}</td>
-    </tr>
-  {{/entry}}
-</tbody>
-<tfoot>
+const TPL_SUMMARY_TABLE_BODY = `
+{{#entry}}
   <tr>
-    <th class="left">Total</th>
-    <td class="{{#foot.good}}good{{/foot.good}}{{^foot.good}}bad{{/foot.good}} right">{{foot.delta}}</td>
-    <td class="right">{{foot.amount}}</td>
+    <td>{{source}}</td>
+    <td class="{{#good}}text-success{{/good}}{{#bad}}text-danger{{/bad}} text-right">{{delta}}</td>
+    <td class="{{#abad}}text-danger{{/abad}} text-right">{{amount}}</td>
   </tr>
-</tfoot>
+{{/entry}}
+`;
+const TPL_SUMMARY_TABLE_FOOT = `
+<tr>
+  <th>Total</th>
+  <td class="{{#good}}text-success{{/good}}{{#bad}}text-danger{{/bad}} text-right">{{delta}}</td>
+  <td class="{{#abad}}text-danger{{/abad}} text-right">{{amount}}</td>
+</tr>
 `;
 
 // The "history" table.
-const TPL_HISTORY_TABLE = `
-<tbody>
-  {{#entry}}
-    <tr>
-      <th>{{day}}</th>
-      <td{{#first.virtual}} class="virtual"{{/first.virtual}}>{{first.title}}</td>
-      <td class="{{#first.good}}good{{/first.good}}{{^first.good}}bad{{/first.good}}">{{first.delta}}</td>
-    </tr>
-    {{#rest}}
-      <tr class="sub">
-        <th></th>
-        <td{{#virtual}} class="virtual"{{/virtual}}>{{title}}</td>
-        <td class="{{#good}}good{{/good}}{{^good}}bad{{/good}}">{{delta}}</td>
-      </tr>
-    {{/rest}}
-  {{/entry}}
-</tbody>
-<tfoot>
+const TPL_HISTORY_TABLE_BODY = `
+{{#entry}}
   <tr>
-    <th class="left" colspan="2">Total</th>
-    <td class="{{#foot.good}}good{{/foot.good}}{{^foot.good}}bad{{/foot.good}} right">{{foot.delta}}</td>
+    <th>{{day}}</th>
+    <td{{#first.virtual}} class="virtual"{{/first.virtual}}>{{first.title}}</td>
+    <td class="{{#first.good}}text-success{{/first.good}}{{#first.bad}}text-danger{{/first.bad}} text-right">{{first.delta}}</td>
   </tr>
-</tfoot>
+  {{#rest}}
+    <tr class="sub">
+      <th></th>
+      <td{{#virtual}} class="virtual"{{/virtual}}>{{title}}</td>
+      <td class="{{#good}}text-success{{/good}}{{#bad}}text-danger{{/bad}} text-right">{{delta}}</td>
+    </tr>
+  {{/rest}}
+{{/entry}}
+`;
+const TPL_HISTORY_TABLE_FOOT = `
+<tr>
+  <th colspan="2">Total</th>
+  <td class="{{#good}}text-success{{/good}}{{#bad}}text-danger{{/bad}} text-right">{{delta}}</td>
+</tr>
+`;
+
+// The navigation bar
+const TPL_NAVBAR = `
+<ul class="nav nav-pills flex-column">
+{{#entry}}
+  <li class="nav-item"><a href="{{url}}" class="nav-link {{#active}}active{{/active}}" data-toggle="tooltip" data-placement="right" title="{{title}}">
+    <span><i class="fa fa-lg fa-{{icon}}" aria-hidden="true" aria-label="{{title}}"></i></span>
+  </a></li>
+{{/entry}}
+</ul>
 `;

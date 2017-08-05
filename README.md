@@ -67,57 +67,32 @@ If no argument is given, a file `./config.yaml` is tried.
 
 ### Frontend
 
-Fetch dependencies with `yarn`:
+In this section, `$WEBDIR` refers to the directory you specified in
+your configuration file to serve static files from.
 
-```back
-cd frontend
-yarn install
-```
+1. Make the directories:
 
-(or just find the appropriate .js files on their source websites)
+    ```bash
+    mkdir -p $WEBDIR/{fonts,vendor}
+    ```
 
-Also fetch the webfonts:
+2. Fetch the dependencies (save all in `$WEBDIR/vendor`):
 
-- The Calluna Sans regular font face (the free one) from https://www.fontspring.com/fonts/exljbris/calluna-sans,
-  saved as `CallunaSansRegular.woff2`
-- The Noto Serif latin font face from https://fonts.google.com/?selection.family=Noto+Serif,
-  saved as `NotoSerifRegular.woff2`
+    - `highcharts.js` and `highstock.js` (both version 5) from https://www.highcharts.com
+        **Note**: Highcharts is only free for non-commercial use.
+    - `jquery.min.js` (version 3) from https://jquery.com
+    - `mustache.min.js` (version 2) from https://github.com/janl/mustache.js
+    - `tether.min.js` (version 1) from http://tether.io
+    - `font-awesome` (version 4) from http://fontawesome.io
+    - `bootstrap` (version 4) from https://v4-alpha.getbootstrap.com
 
-And copy everything to the directory your `config.yaml` says to serve
-static files from:
+3. Fetch the Calluna Sans regular font face (the free one) from https://www.fontspring.com/fonts/exljbris/calluna-sans,
+   saved as `$WEBDIR/fonts/CallunaSansRegular.woff2`
 
-```bash
-mkdir -p ../web/vendor
-cp node_modules/highcharts/highcharts.js    ../web/vendor/highcharts.min.js
-cp node_modules/highcharts/modules/stock.js ../web/vendor/highstock.min.js
-cp node_modules/mustache/mustache.min.js    ../web/vendor/mustache.min.js
-cp CallunaSansRegular.woff2 NotoSerifRegular.woff2 ../web/fonts/
-cp src/* ../web/
-```
+4. Finally, copy over the frontend files:
 
+    ```bash
+    cp frontend/* $WEBDIR
+    ```
 
-Interface
----------
-
-### Keybindings
-
-**Summary:**
-
-- `left`:  go to prior month (if not January)
-- `right`: go to next month (if not December)
-- `r`: re-draw charts
-- `s`: show asset summary
-- `h`: show historical balances
-
-**Balance Sheet:**
-
-- `left`:  go to prior month (if not January)
-- `right`: go to next month (if not December)
-
-**Cashflow:**
-
-- `r`: re-draw charts
-
-### Clicky Things
-
-- Names in chart legends
+Think this is a hassle?  I'm planning to add an option to just use CDNs for all these dependencies.

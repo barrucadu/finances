@@ -1,6 +1,0 @@
-{
-  "dependencies": {
-    "highcharts": "^5.0.12",
-    "mustache": "^2.3.0"
-  }
-}

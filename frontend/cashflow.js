@@ -109,16 +109,9 @@ window.onload = () => {
     // Default options for charts
     setChartDefaults();
 
-    // From sidebar.js
-    renderSidebar();
+    // Render the navbar
+    navbar('cashflow');
 
     // Fetch the data
     renderFinancesFor((month, data) => renderCharts(data.income, data.expenses));
-
-    // Set up keybindings
-    document.onkeyup = function(e) {
-        if (e.key == 'r') {
-            renderCharts();
-        }
-    }
 };

@@ -3,7 +3,6 @@ const THIS_MONTH = new Date().getMonth() + 1;
 const A_MONTH_AND_A_HALF_FROM_NOW =
       (THIS_MONTH < 12) ? new Date(THIS_YEAR, THIS_MONTH, 15) : new Date(THIS_YEAR, 12, 31);
 
-var show = 'summary';
 var historical_chart_axes = undefined;
 
 var hidden_assets = {};
@@ -160,110 +159,6 @@ function renderAllocationChart(assets_data, commodities_data) {
         });
 }
 
-function renderAssetsHistoricalChart(raw_assets_data) {
-    let keys   = Object.keys(raw_assets_data);
-    let axes   = [];
-    let gap    = 5;
-    let height = 100 * 1 / keys.length - gap;
-    let series = {};
-
-    for (let i = 0; i < keys.length; i ++) {
-        let asset = raw_assets_data[keys[i]];
-
-        axes.push({
-            height: `${height}%`,
-            top: `${(height + gap) * i}%`,
-            offset: 0,
-            min: 0
-        });
-
-        if (!(asset.name in series)) {
-            for (let j = 0; j < asset.breakdown.length; j ++) {
-                let account = asset.breakdown[j];
-                series[`${asset.name} (${account.name})`] = {
-                    asset: asset,
-                    account: account,
-                    colour: colour(`${asset.name} (${account.name})`),
-                    data: [],
-                    yAxis: axes.length-1
-                };
-            }
-            if (asset.breakdown.length == 1 && asset.name == asset.breakdown[0].name) {
-                series[asset.name] = {
-                    asset: asset,
-                    account: undefined,
-                    colour: colour(asset.name),
-                    data: {},
-                    yAxis: axes.length-1
-                };
-            }
-        }
-
-        for (let i = 0; i < asset.breakdown.length; i ++) {
-            let account = asset.breakdown[i];
-
-            for (let j = 0; j < account.history.length; j ++) {
-                let entry  = account.history[j];
-                let date   = new Date(entry.date).getTime();
-                let amount = entry.amount;
-
-                if (asset.breakdown.length == 1 && asset.name == asset.breakdown[0].name) {
-                    series[asset.name].data[date] = zeroish(amount) ? undefined : amount;
-                } else {
-                    series[`${asset.name} (${account.name})`].data[date] = zeroish(amount) ? undefined : amount;
-                }
-            }
-        }
-    }
-
-    let chart = Highcharts.stockChart('historical_chart_container', {
-        chart: { zoomType: 'x' },
-        xAxis: { max: A_MONTH_AND_A_HALF_FROM_NOW.getTime() },
-        yAxis: axes,
-        rangeSelector: { selected: 1 },
-        series: Object.keys(series).map(function(key) {
-            // convert a datum to a point
-            function toPoint(date) {
-                return {
-                    x: parseInt(date),
-                    y: zeroish(series[key].data[date]) ? undefined : series[key].data[date],
-                    asset: series[key].asset,
-                    account: series[key].account
-                };
-            }
-
-            // format a point for a tooltip
-            function pointFormatter() {
-                if (zeroish(this.y)) return '';
-
-                let key = `<span style="color:${colour(this.asset.name)};font-weight:bold">${this.asset.name}</span>`;
-                if (this.account != undefined) {
-                    let c = colour(`${this.asset.name} (${this.account.name})`);
-                    key = `${key} <span style="color:${c};font-weight:bold"> (${this.account.name})</span>`;
-                }
-
-                return `${key} ${strAmount(this.y)}<br/>`;
-            }
-
-            return {
-                type: 'spline',
-                name: key,
-                data: Object.keys(series[key].data).map(toPoint),
-                color: series[key].colour,
-                tooltip: { pointFormatter: pointFormatter },
-                yAxis: series[key].yAxis
-            }
-        })
-    });
-
-    // restore the old X positioning
-    if (historical_chart_axes != undefined) {
-        chart.xAxis[0].setExtremes(historical_chart_axes.userMin, historical_chart_axes.userMax);
-        chart.showResetZoom();
-    }
-    historical_chart_axes = chart.xAxis[0];
-}
-
 function renderAssetsSnapshotChart(raw_data) {
     let data = {};
 
@@ -290,23 +185,15 @@ function renderCharts(data) {
         data = cached_data;
     }
 
-    // allocation
     renderAllocationChart(data.assets, data.commodities);
-
-    // balances or history chart
-    document.getElementById('general_chart_container').style.display    = (show == 'summary' || show == 'historical') ? 'flex' : 'none';
-    document.getElementById('allocation_chart_container').style.display = (show == 'summary')    ? 'block' : 'none';
-    document.getElementById('balances_chart_container').style.display   = (show == 'summary')    ? 'block' : 'none';
-    document.getElementById('historical_chart_container').style.display = (show == 'historical') ? 'block' : 'none';
-
-    if (show == 'historical') {
-        renderAssetsHistoricalChart(data.assets);
-    } else {
-        renderAssetsSnapshotChart(data.assets);
-    }
+    renderAssetsSnapshotChart(data.assets);
 }
 
-function renderTable(raw_data, name, flipGoodBad=false) {
+function renderTable(raw_data, name, opts={}) {
+    let flipGoodBad = (opts.flipGoodBad == undefined) ? true  : opts.flipGoodBad;
+    let showDelta   = (opts.showDelta   == undefined) ? true  : opts.showDelta;
+    let showABad    = (opts.showABad    == undefined) ? false : opts.showABad;
+
     let entries = [];
     let sources = Object.keys(raw_data.accounts).sort();
     let totalAmount = 0;
@@ -319,77 +206,66 @@ function renderTable(raw_data, name, flipGoodBad=false) {
 
         entries.push({
             'source': source,
-            'good':   (data.delta > 0) ? !flipGoodBad : flipGoodBad,
-            'delta':  zeroish(data.delta) ? '' : strAmount(data.delta, true),
+            'good': (data.delta == 0) ? false : ((data.delta > 0) ? !flipGoodBad : flipGoodBad),
+            'bad':  (data.delta == 0) ? false : ((data.delta < 0) ? !flipGoodBad : flipGoodBad),
+            'abad':  (data.amount == 0    || !showABad)  ? false : ((data.amount < 0) ? !flipGoodBad : flipGoodBad),
+            'delta': (zeroish(data.delta) || !showDelta) ? ''    : strAmount(data.delta, true),
             'amount': strAmount(data.amount)
         });
         totalAmount += data.amount;
         totalDelta += data.delta;
     }
 
-    document.getElementById(`cur_${name}_table`).innerHTML = Mustache.render(TPL_SUMMARY_TABLE, {
-        entry: entries,
-        foot: {
-            good:   (totalDelta > 0) ? !flipGoodBad : flipGoodBad,
-            delta:  zeroish(totalDelta) ? '' : strAmount(totalDelta, true),
-            amount: strAmount(totalAmount)
-        }
+    document.getElementById(`cur_${name}_tbody`).innerHTML = Mustache.render(TPL_SUMMARY_TABLE_BODY, {
+        entry: entries
     });
-    document.getElementById(`cur_${name}_prior_date`).innerText = raw_data.prior_date;
+    document.getElementById(`cur_${name}_tfoot`).innerHTML = Mustache.render(TPL_SUMMARY_TABLE_FOOT, {
+        good: (totalDelta == 0) ? false : ((totalDelta > 0) ? !flipGoodBad : flipGoodBad),
+        bad:  (totalDelta == 0) ? false : ((totalDelta < 0) ? !flipGoodBad : flipGoodBad),
+        abad:  (totalAmount == 0    || !showABad)  ? false : ((totalAmount < 0) ? !flipGoodBad : flipGoodBad),
+        delta: (zeroish(totalDelta) || !showDelta) ? ''    : strAmount(totalDelta, true),
+        amount: strAmount(totalAmount)
+    });
+    if (showDelta) {
+        document.getElementById(`cur_${name}_prior_date`).innerText = raw_data.prior_date;
+    }
 }
 
 function renderIncome(raw_income_data) {
-    renderTable(raw_income_data, 'income', true);
+    renderTable(raw_income_data, 'income');
 }
 
 function renderBudget(raw_budget_data) {
-    renderTable(raw_budget_data, 'budget');
+    renderTable(raw_budget_data, 'budget', { flipGoodBad: false, showDelta: false, showABad: true });
 }
 
 function renderExpenses(raw_expenses_data) {
-    renderTable(raw_expenses_data, 'expenses', true);
+    renderTable(raw_expenses_data, 'expenses');
 }
 
 function renderFinances(month, data) {
-    document.title = data.when;
-    document.getElementById('when').innerText = data.when;
-
-    document.getElementById('back').style.visibility = (month == 1)  ? 'hidden' : 'visible';
-    document.getElementById('next').style.visibility = (month == 12) ? 'hidden' : 'visible';
-
     renderCharts(data);
     renderIncome(data.income);
     renderBudget(data.budget);
     renderExpenses(data.expenses);
 
-    // this function comes from history.js
-    renderHistory(data.history, 'history_table');
+    // from history.js
+    renderHistoryFor(data.history, 'recent');
 }
 
 window.onload = () => {
     // Default options for charts
     setChartDefaults();
 
-    // From sidebar.js
-    renderSidebar();
+    // Render the navbar
+    navbar('summary');
 
-    // Fetch the data
-    renderFinancesFor(renderFinances);
-
-    // Set up keybindings
-    document.onkeyup = function(e) {
-        if (e.key == 'ArrowLeft') {
-            renderFinancesForLastMonth(renderFinances);
-        } else if (e.key == 'ArrowRight') {
-            renderFinancesForNextMonth(renderFinances);
-        } else if (e.key == 'r') {
-            renderCharts();
-        } else if (e.key == 's' && show != 'summary') {
-            show = 'summary';
-            renderCharts();
-        } else if (e.key == 'h' && show != 'historical') {
-            show = 'historical';
-            renderCharts();
-        }
-    }
+    // Set up the month picker
+    let visible_month = -1;
+    monthpicker(i => {
+        if (i == visible_month) return;
+        visible_month = i;
+        document.getElementById('month-name').innerText = MONTH_NAMES[i];
+        renderFinancesFor(renderFinances, i);
+    });
 };

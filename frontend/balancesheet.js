@@ -1,20 +1,19 @@
 // Render one component of the balance sheet.
 function renderComponent(name, data) {
-    let table_ele = document.getElementById(`bs_${name}_table`);
     let total = Object.values(data).reduce((acc, d) => acc + d.reduce((acc, a) => acc + a.amount, 0), 0);
 
-    table_ele.innerHTML = Mustache.render(TPL_BALANCE_TABLE, {
+    document.getElementById(`bs_${name}_tbody`).innerHTML = Mustache.render(TPL_BALANCE_TABLE_BODY, {
         'category': Object.keys(data).sort().map(k => {
             let entries = [];
             for (let i = 0; i < data[k].length; i ++) {
                 entries.push({ name: data[k][i].name, amount: strAmount(data[k][i].amount) });
             }
             return { title: k, entry: entries };
-        }),
-        foot: {
-            caption: 'Total',
-            value: strAmount(total)
-        }
+        })
+    });
+    document.getElementById(`bs_${name}_tfoot`).innerHTML = Mustache.render(TPL_BALANCE_TABLE_FOOT, {
+        caption: 'Total',
+        value: strAmount(total)
     });
 
     return total;
@@ -63,7 +62,7 @@ function renderBalanceSheet(raw_data) {
     let income_total      = renderComponent('income',      income_data,   'End of Period');
     let liabilities_total = renderComponent('liabilities', liabilities_data);
 
-    document.getElementById(`bs_total_table`).innerHTML = Mustache.render(TPL_BALANCE_TABLE, {
+    document.getElementById(`bs_total_tbody`).innerHTML = Mustache.render(TPL_BALANCE_TABLE_BODY, {
         category: [{
             title: 'Balance',
             entry: [ { name: 'Assets',      amount: strAmount(assets_total) },
@@ -72,39 +71,33 @@ function renderBalanceSheet(raw_data) {
                      { name: 'Income',      amount: strAmount(income_total) },
                      { name: 'Liabilities', amount: strAmount(liabilities_total) }]
         }],
-        foot: {
-            caption: 'Overall Total',
-            value: strAmount(assets_total + equity_total + expenses_total + income_total + liabilities_total)
-        }
+    });
+    document.getElementById(`bs_total_tfoot`).innerHTML = Mustache.render(TPL_BALANCE_TABLE_FOOT, {
+        caption: 'Overall Total',
+        value: strAmount(assets_total + equity_total + expenses_total + income_total + liabilities_total)
     });
 }
 
 function renderFinances(month, data) {
-    document.title = data.when;
-    document.getElementById('when').innerText = data.when;
+    // document.title = data.when;
+    // document.getElementById('when').innerText = data.when;
 
-    document.getElementById('back').style.visibility = (month == 1)  ? 'hidden' : 'visible';
-    document.getElementById('next').style.visibility = (month == 12) ? 'hidden' : 'visible';
+    // document.getElementById('back').style.visibility = (month == 1)  ? 'hidden' : 'visible';
+    // document.getElementById('next').style.visibility = (month == 12) ? 'hidden' : 'visible';
 
     renderBalanceSheet(data);
 }
 
 window.onload = () => {
+    // Render the navbar
+    navbar('balancesheet');
 
-    // From sidebar.js
-    renderSidebar();
-
-    // Fetch the data
-    renderFinancesFor(renderFinances);
-
-    // Set up keybindings
-    document.onkeyup = function(e) {
-        if (e.key == 'ArrowLeft') {
-            renderFinancesForLastMonth(renderFinances);
-        } else if (e.key == 'ArrowRight') {
-            renderFinancesForNextMonth(renderFinances);
-        } else if (e.key == 'r') {
-            renderFinances();
-        }
-    }
+    // Set up the month picker
+    let visible_month = -1;
+    monthpicker(i => {
+        if (i == visible_month) return;
+        visible_month = i;
+        document.getElementById('month-name').innerText = MONTH_NAMES[i];
+        renderFinancesFor(renderFinances, i);
+    });
 };

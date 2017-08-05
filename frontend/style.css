@@ -1,0 +1,118 @@
+body {
+    font-family: 'Calluna Sans';
+    padding-top: 20px;
+    padding-bottom: 50px;
+    margin-left: 70px;
+}
+
+header {
+    padding-bottom: 1.5rem;
+}
+
+h1 {
+    font-size: 2rem;
+}
+
+tbody th {
+    width: 70px;
+}
+
+thead th {
+    border-top: none !important;
+}
+
+
+/* **** navigation ********************************************************* */
+
+nav {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    margin-top: 0;
+    margin-bottom: 0;
+    background-color: #eee;
+    overflow-y: auto;
+    width: 70px;
+}
+
+nav span {
+    display: block;
+    text-align: center;
+}
+
+nav li + li {
+    border-top: 1px solid #fff;
+}
+
+nav a {
+    padding-top: 1.5em !important;
+    padding-bottom: 1.5em !important;
+    color: #333 !important;
+}
+
+nav a.active {
+    background-color: #fff !important;
+}
+
+
+/* **** dividers *********************************************************** */
+
+.divider {
+    margin-top: 3rem;
+    margin-bottom: 1rem;
+    font-size: 12px;
+    line-height: 20px;
+    position: relative;
+    text-align: center;
+    text-transform: uppercase;
+}
+
+.divider:before {
+    position: absolute;
+    top: 50%;
+    display: block;
+    content: "";
+    width: 100%;
+    height: 1px;
+    background-color: #eee;
+}
+
+.divider h2 {
+    position: relative;
+    z-index: 2;
+    display: inline-block;
+    padding-left: 1rem;
+    padding-right: 1rem;
+    vertical-align: middle;
+    background-color: #fff;
+    margin-top: 0;
+    margin-bottom: 0;
+    font-size: 100%;
+}
+
+
+/* **** month picker ******************************************************* */
+
+.monthpicker .dropdown-caption, .monthpicker .dropdown-menu {
+    width: 120px;
+    text-align: left;
+}
+
+
+/* **** forms ************************************************************** */
+
+.form-inline {
+    margin-bottom: 0;
+}
+
+
+/* **** webfonts *********************************************************** */
+
+@font-face {
+    font-family: 'Calluna Sans';
+    src: local('Calluna Sans'), local('CallunaSans'), url('/font/CallunaSansRegular.woff2') format('woff2');
+    font-weight: normal;
+    font-style: normal;
+}
