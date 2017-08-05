@@ -76,7 +76,7 @@ your configuration file to serve static files from.
     mkdir -p $WEBDIR/{fonts,vendor}
     ```
 
-2. Fetch the dependencies (save all in `$WEBDIR/vendor`):
+2. Use a CDN (set the `use_cdn` flag in `backend/tpl/wrapper.tpl`) *OR* fetch the dependencies (save all in `$WEBDIR/vendor`):
 
     - `highstock.js` (version 5) from https://www.highcharts.com
         **Note**: Highcharts is only free for non-commercial use.
@@ -94,5 +94,3 @@ your configuration file to serve static files from.
     ```bash
     cp frontend/* $WEBDIR
     ```
-
-Think this is a hassle?  I'm planning to add an option to just use CDNs for all these dependencies.
