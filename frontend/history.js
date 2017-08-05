@@ -70,18 +70,13 @@ function renderHistory() {
     }
 }
 
-window.onload = () => {
-    // Render the navbar
-    navbar('history');
+window.onload = () => ajax(`/history`, all_data => {
+    let year = new Date().getFullYear();
 
-    ajax(`/history`, all_data => {
-        let year = new Date().getFullYear();
+    cached_data = [];
+    for (let i = 1; i < 13; i ++) {
+        cached_data.push(getMonthlyTxns(all_data, year, i));
+    }
 
-        cached_data = [];
-        for (let i = 1; i < 13; i ++) {
-            cached_data.push(getMonthlyTxns(all_data, year, i));
-        }
-
-        renderHistory();
-    });
-}
+    renderHistory();
+});

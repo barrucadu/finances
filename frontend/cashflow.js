@@ -105,13 +105,4 @@ function renderCharts(income_data, expense_data) {
     renderBreakdownChart('income_breakdown_chart_container',   income_data);
 }
 
-window.onload = () => {
-    // Default options for charts
-    setChartDefaults();
-
-    // Render the navbar
-    navbar('cashflow');
-
-    // Fetch the data
-    renderFinancesFor((month, data) => renderCharts(data.income, data.expenses));
-};
+window.onload = () => renderFinancesFor((month, data) => renderCharts(data.income, data.expenses));

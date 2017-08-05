@@ -9,20 +9,6 @@ var cached_data = undefined;
  * functions
  *****************************************************************************/
 
-// Render the navbar
-function navbar(page) {
-    document.getElementById('navbar').innerHTML = Mustache.render(TPL_NAVBAR, {
-        entry: [
-            { title: 'Summary',             url: '/',                  active: page == 'summary',      icon: 'home' },
-            { title: 'Balance Sheet',       url: '/balancesheet.html', active: page == 'balancesheet', icon: 'bank' },
-            { title: 'Cashflow',            url: '/cashflow.html',     active: page == 'cashflow',     icon: 'balance-scale' },
-            { title: 'Transaction History', url: '/history.html',      active: page == 'history',      icon: 'list' },
-        ]
-    });
-
-    $('[data-toggle="tooltip"]').tooltip();
-}
-
 // Make an ajax request and do something with the result
 function ajax(url, cb) {
     let httpRequest = new XMLHttpRequest();
@@ -205,15 +191,4 @@ const TPL_HISTORY_TABLE_FOOT = `
   <th colspan="2">Total</th>
   <td class="{{#good}}text-success{{/good}}{{#bad}}text-danger{{/bad}} text-right">{{delta}}</td>
 </tr>
-`;
-
-// The navigation bar
-const TPL_NAVBAR = `
-<ul class="nav nav-pills flex-column">
-{{#entry}}
-  <li class="nav-item"><a href="{{url}}" class="nav-link {{#active}}active{{/active}}" data-toggle="tooltip" data-placement="right" title="{{title}}">
-    <span><i class="fa fa-lg fa-{{icon}}" aria-hidden="true" aria-label="{{title}}"></i></span>
-  </a></li>
-{{/entry}}
-</ul>
 `;

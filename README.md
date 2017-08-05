@@ -78,7 +78,7 @@ your configuration file to serve static files from.
 
 2. Fetch the dependencies (save all in `$WEBDIR/vendor`):
 
-    - `highcharts.js` and `highstock.js` (both version 5) from https://www.highcharts.com
+    - `highstock.js` (version 5) from https://www.highcharts.com
         **Note**: Highcharts is only free for non-commercial use.
     - `jquery.min.js` (version 3) from https://jquery.com
     - `mustache.min.js` (version 2) from https://github.com/janl/mustache.js

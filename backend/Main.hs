@@ -14,6 +14,7 @@ import qualified Data.Map                      as M
 import           Data.Maybe                    (fromMaybe, listToMaybe)
 import           Data.Ratio                    (Rational)
 import qualified Data.Text                     as T
+import qualified Data.Text.Encoding            as T
 import qualified Data.Time.Calendar            as C
 import qualified Data.Time.Clock               as C
 import qualified Data.Yaml                     as Y
@@ -32,6 +33,7 @@ import           Text.Read                     (readMaybe)
 
 import qualified Config                        as FC
 import qualified Report                        as FR
+import qualified Template                      as FT
 
 main :: IO ()
 main = do
@@ -57,7 +59,7 @@ run :: FC.Config -> IO ()
 run cfg = W.runEnv (FC.port . FC.http $ cfg) $ serveStatic (\req respond -> respond =<< serveDynamic req) where
   serveStatic =
     let staticdir = FC.staticDir (FC.http cfg)
-    in W.staticPolicy $ W.only [("", staticdir </> "index.html")] W.<|> W.addBase staticdir
+    in W.staticPolicy (W.addBase staticdir)
 
   serveDynamic req = do
     journalPath <- maybe H.defaultJournalPath pure (FC.journalPath cfg)
@@ -79,10 +81,22 @@ run cfg = W.runEnv (FC.port . FC.http $ cfg) $ serveStatic (\req respond -> resp
                 d = fromMaybe (C.gregorianMonthLength y m) qday
             in C.fromGregorian y m d
           _ -> today
-    pure . (\(c, v) -> W.responseLBS c [] v) $ case W.pathInfo req of
-      ["data"]    -> (W.ok200, A.encode . A.toJSON . dateReport    cfg date   $ H.jtxns journal)
-      ["history"] -> (W.ok200, A.encode . A.toJSON . historyReport cfg . Left $ H.jtxns journal)
-      _ -> (W.notFound404, "not found")
+    case W.pathInfo req of
+      []                    -> serveTemplate <$> FT.summaryPage
+      ["index.html"]        -> serveTemplate <$> FT.summaryPage
+      ["balancesheet.html"] -> serveTemplate <$> FT.balancesheetPage
+      ["cashflow.html"]     -> serveTemplate <$> FT.cashflowPage
+      ["history.html"]      -> serveTemplate <$> FT.historyPage
+
+      ["data"]    -> pure $ serveJSON (A.toJSON . dateReport    cfg date   $ H.jtxns journal)
+      ["history"] -> pure $ serveJSON (A.toJSON . historyReport cfg . Left $ H.jtxns journal)
+
+      _ -> pure $ W.responseLBS W.notFound404 [] "not found"
+
+  serveJSON = W.responseLBS W.ok200 [] . A.encode
+
+  serveTemplate (Right html) = W.responseBuilder W.ok200 [] (T.encodeUtf8Builder html)
+  serveTemplate (Left  perr) = W.responseBuilder W.internalServerError500 [] (T.encodeUtf8Builder perr)
 
 -- | Get the data from the default hledger journal for the given date.
 financeDataFor :: FC.Config -> C.Day -> IO A.Value

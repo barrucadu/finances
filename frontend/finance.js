@@ -254,12 +254,6 @@ function renderFinances(month, data) {
 }
 
 window.onload = () => {
-    // Default options for charts
-    setChartDefaults();
-
-    // Render the navbar
-    navbar('summary');
-
     // Set up the month picker
     let visible_month = -1;
     monthpicker(i => {

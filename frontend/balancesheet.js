@@ -89,9 +89,6 @@ function renderFinances(month, data) {
 }
 
 window.onload = () => {
-    // Render the navbar
-    navbar('balancesheet');
-
     // Set up the month picker
     let visible_month = -1;
     monthpicker(i => {

@@ -4,12 +4,15 @@ executables:
     other-modules:
       - Config
       - Report
+      - Template
     dependencies:
       - base
       - aeson
       - containers
+      - data-default-class
       - directory
       - filepath
+      - ginger
       - hledger-lib
       - http-types
       - text
