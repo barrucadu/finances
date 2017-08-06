@@ -12,11 +12,7 @@ function legendItemClick(hider) {
 
         for (let point of this.series.chart.series[1].points) {
             if (point.owner == this.name) {
-                if (this.name in hider) {
-                    point.update({visible: false, name: '', originalName: point.name });
-                } else {
-                    point.update({visible: true, name: point.originalName });
-                }
+                point.update({ visible: !(this.name in hider) });
             }
         }
     }
