@@ -1,10 +1,9 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Main where
+module Main (main) where
 
-import           Control.Arrow                 (second, (&&&))
-import           Control.Monad                 (join)
+import           Control.Arrow                 (second)
 import qualified Data.Aeson                    as A
 import           Data.Char                     (toUpper)
 import           Data.List                     (inits, isPrefixOf, mapAccumL,
@@ -16,12 +15,10 @@ import           Data.Ratio                    (Rational)
 import qualified Data.Text                     as T
 import qualified Data.Text.Encoding            as T
 import qualified Data.Time.Calendar            as C
-import qualified Data.Time.Clock               as C
 import qualified Data.Yaml                     as Y
 import qualified Hledger.Data.Types            as H
 import qualified Hledger.Read                  as H
 import qualified Network.HTTP.Types.Status     as W
-import qualified Network.HTTP.Types.URI        as W
 import qualified Network.Wai                   as W
 import qualified Network.Wai.Handler.Warp      as W
 import qualified Network.Wai.Middleware.Static as W
@@ -29,7 +26,6 @@ import           System.Directory              (getHomeDirectory)
 import           System.Environment            (getArgs)
 import           System.Exit                   (exitFailure)
 import           System.FilePath               (FilePath, takeDirectory, (</>))
-import           Text.Read                     (readMaybe)
 
 import qualified Config                        as FC
 import qualified Report                        as FR
@@ -69,51 +65,32 @@ run cfg = W.runEnv (FC.port . FC.http $ cfg) $ serveStatic (\req respond -> resp
         putStrLn err
         pure (W.responseLBS W.internalServerError500 [] "cannot read journal file")
 
-  serveDynamic' req journal = do
-    today <- C.utctDay <$> C.getCurrentTime
-    let qstr = map (second (fmap T.unpack)) . W.queryToQueryText . W.queryString $ req
-        qyear  = readMaybe =<< join (lookup "year"  qstr)
-        qmonth = readMaybe =<< join (lookup "month" qstr)
-        qday   = readMaybe =<< join (lookup "day"   qstr)
-        date = case qmonth of
-          Just m ->
-            let y = fromMaybe ((\(y',_,_) -> y') (C.toGregorian today)) qyear
-                d = fromMaybe (C.gregorianMonthLength y m) qday
-            in C.fromGregorian y m d
-          _ -> today
-    case W.pathInfo req of
-      []                    -> serveTemplate <$> FT.summaryPage
-      ["index.html"]        -> serveTemplate <$> FT.summaryPage
-      ["balancesheet.html"] -> serveTemplate <$> FT.balancesheetPage
-      ["cashflow.html"]     -> serveTemplate <$> FT.cashflowPage
-      ["history.html"]      -> serveTemplate <$> FT.historyPage
+  serveDynamic' req journal = case W.pathInfo req of
+    []                    -> serveTemplate <$> FT.summaryPage
+    ["index.html"]        -> serveTemplate <$> FT.summaryPage
+    ["balancesheet.html"] -> serveTemplate <$> FT.balancesheetPage
+    ["cashflow.html"]     -> serveTemplate <$> FT.cashflowPage
+    ["history.html"]      -> serveTemplate <$> FT.historyPage
 
-      ["data"]    -> pure $ serveJSON (A.toJSON . dateReport    cfg date   $ H.jtxns journal)
-      ["history"] -> pure $ serveJSON (A.toJSON . historyReport cfg . Left $ H.jtxns journal)
+    ["data"]    -> pure $ serveJSON (A.toJSON . accountsReport cfg        $ H.jtxns journal)
+    ["history"] -> pure $ serveJSON (A.toJSON . historyReport  cfg . Left $ H.jtxns journal)
 
-      _ -> pure $ W.responseLBS W.notFound404 [] "not found"
+    _ -> pure $ W.responseLBS W.notFound404 [] "not found"
 
   serveJSON = W.responseLBS W.ok200 [] . A.encode
 
   serveTemplate (Right html) = W.responseBuilder W.ok200 [] (T.encodeUtf8Builder html)
   serveTemplate (Left  perr) = W.responseBuilder W.internalServerError500 [] (T.encodeUtf8Builder perr)
 
--- | Get the data from the default hledger journal for the given date.
-financeDataFor :: FC.Config -> C.Day -> IO A.Value
-financeDataFor cfg today =
-  A.toJSON . dateReport cfg today . H.jtxns <$> H.defaultJournal
-
--- | Get the data for a specific date.
-dateReport :: FC.Config -> C.Day -> [H.Transaction] -> FR.Report
-dateReport cfg today txns = FR.Report
-    { FR.rpWhen        = today
-    , FR.rpAssets      = map accountReport assetAccounts
+-- | Get the account historical balances.
+accountsReport :: FC.Config -> [H.Transaction] -> FR.Report
+accountsReport cfg txns = FR.Report
+    { FR.rpAssets      = map accountReport assetAccounts
     , FR.rpLiabilities = map accountReport liabilityAccounts
-    , FR.rpIncome      = balanceFrom monthStart    incomeAccounts
-    , FR.rpBudget      = balanceFrom (const epoch) budgetAccounts
-    , FR.rpExpenses    = balanceFrom monthStart    expenseAccounts
-    , FR.rpEquity      = map (accountName cfg &&& currentBalance) equityAccounts
-    , FR.rpHistory     = historyReport cfg (Right $ takeWhile (\db -> monthYear (dbDay db) == monthYear today) uptonow)
+    , FR.rpIncome      = balanceFrom incomeAccounts
+    , FR.rpBudget      = balanceFrom budgetAccounts
+    , FR.rpExpenses    = balanceFrom expenseAccounts
+    , FR.rpEquity      = balanceFrom equityAccounts
     , FR.rpCommodities = map (second FR.CommodityReport) (FC.commodities cfg)
     }
   where
@@ -133,9 +110,10 @@ dateReport cfg today txns = FR.Report
             { FR.srName        = accountName     cfg subaccount
             , FR.srBalTag      = accountCategory cfg subaccount
             , FR.srURL         = accountURL      cfg subaccount
-            , FR.srAmount      = currentBalance      subaccount
             , FR.srHistory     = allHistory          subaccount
-            , FR.srCommodities = map (second $ uncurry FR.CommodityBalanceReport) $ M.assocs (currentCommodities subaccount)
+            , FR.srCommodities = [ (c, commodityHistory subaccount c)
+                                 | c <- commoditiesIn subaccount
+                                 ]
             }
           | let subaccounts = filter (`isDirectSubaccountOf` account) accounts
           , subaccount <- if null subaccounts then [account] else subaccounts
@@ -143,40 +121,32 @@ dateReport cfg today txns = FR.Report
       }
 
     -- todo: factor this out to a new top-level definition
-    balanceFrom whenf accounts = FR.BasicReport
+    balanceFrom accounts = FR.BasicReport
       { FR.brAccounts =
-          [ ( accountName cfg account
-            , FR.DeltaReport
-              { FR.drCurrent = M.findWithDefault 0 account currentBals
-              , FR.drPrior   = M.findWithDefault 0 account priorBals
-              , FR.drHistory = allHistory account
-              }
-            )
-          | let currentBals = M.unionWith (-) (getBalances uptonow)   (balancesAt (whenf today)     uptonow)
-          , let priorBals   = M.unionWith (-) (getBalances uptoprior) (balancesAt (whenf lastmonth) uptoprior)
-          , account <- accounts
-          ]
-      , FR.brPriorDate = lastmonth
+          [ (accountName cfg account, allHistory account) | account <- accounts ]
       }
 
-    currentBalance     account = M.findWithDefault 0       account (getBalances    uptonow)
-    currentCommodities account = M.findWithDefault M.empty account (getCommodities uptonow)
+    commoditiesIn account = M.keys (M.findWithDefault M.empty account (getCommodities balances))
 
     allHistory account =
       let amountIn = M.findWithDefault 0 account
       in FR.HistoryReport { FR.hrValues = [ (dbDay db, amountIn (dbBalances db)) | db <- balancesAsc ] }
 
-    balancesAt cutoff = getBalances . dropWhile (\db -> dbDay db > cutoff)
+    commodityHistory account c =
+      let amountIn = M.findWithDefault (0, 0) c . M.findWithDefault M.empty account
+          history  = [ (dbDay db, amountIn (dbCommodities db)) | db <- balancesAsc ]
+          report f = FR.HistoryReport [ (day, f x)  | (day, x)  <- history ]
+      in FR.CommodityHistoryReport { FR.chrWorth  = report fst
+                                   , FR.chrAmount = report snd
+                                   }
+
     getBalances    = dbBalances . headOr initial
     getCommodities = dbCommodities . headOr initial
 
     balancesAsc = dailyBalances cfg txns
-    balances  = reverse balancesAsc
-    uptonow   = dropWhile (\db -> dbDay db > today)     balances
-    uptoprior = dropWhile (\db -> dbDay db > lastmonth) uptonow
-    lastmonth = C.addGregorianMonthsClip (-1) today
-    initial   = DailyBalance epoch M.empty []
-    epoch     = C.fromGregorian 1970 1 1
+    balances = reverse balancesAsc
+    initial  = DailyBalance epoch M.empty []
+    epoch    = C.fromGregorian 1970 1 1
 
 -- | Get the transaction history.
 historyReport :: FC.Config -> Either [H.Transaction] [DailyBalance] -> FR.DatedTransactionsReport
@@ -267,14 +237,6 @@ value cfg = go where
 headOr :: a -> [a] -> a
 headOr x [] = x
 headOr _ (x:_) = x
-
--- | Get the month and year of a 'C.Day'.
-monthYear :: C.Day -> (Int, Integer)
-monthYear d = let (y, m, _) = C.toGregorian d in (m, y)
-
--- | Get the end of the prior month.
-monthStart :: C.Day -> C.Day
-monthStart d = C.addDays (-1) (let (m, y) = monthYear d in C.fromGregorian y m 1)
 
 -- | Give a nice name to an account, defaults to the bit after the
 -- last ":" in titlecase.

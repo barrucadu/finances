@@ -19,42 +19,45 @@ function renderComponent(name, data) {
     return total;
 }
 
-// Gather balance data from a delta report.
-function gatherFromDeltaReport(date, raw_data) {
-    let out = [];
+// Gather balance data from an account report.
+function gatherFromAccountReport(raw_data, date) {
+    let out = {};
+    for (let key in raw_data) {
+        let datum = raw_data[key];
+        for (let i = 0; i < datum.breakdown.length; i ++) {
+            let account = datum.breakdown[i];
+            let amount = summariseHistory(account.history, date);
+            if (amount == 0) continue;
+            if (!(account.category in out)) {
+                out[account.category] = [];
+            }
+            out[account.category].push({ name: account.name, amount: amount });
+        }
+    }
+    return out;
+}
+
+// Gather balance data from a basic report.
+function gatherFromBasicReport(raw_data, date, k='End of Period') {
+    let out = {};
+    out[k] = [];
     let keys = Object.keys(raw_data).sort();
     for (let i = 0; i < keys.length; i ++) {
         let key = keys[i];
-        let datum = raw_data[key];
-        let amount = 0;
-        for (let j = 0; j < datum.history.length; j ++) {
-            if (Date.parse(datum.history[j].date) <= date.getTime()) {
-                amount = datum.history[j].amount;
-            } else {
-                break;
-            }
-        }
-        out.push({ name: key, amount: amount });
+        let history = raw_data[key];
+        out[k].push({ name: key, amount: summariseHistory(history, date) });
     }
-    return { 'End of Period': out };
+    return out;
 }
 
 // Render the balance sheet
-function renderBalanceSheet(raw_data) {
-    let assets_data      = gatherFromAccountReport(raw_data.assets);
-    let liabilities_data = gatherFromAccountReport(raw_data.liabilities);
+function renderBalanceSheet(raw_data, date) {
+    let assets_data      = gatherFromAccountReport(raw_data.assets, date);
+    let liabilities_data = gatherFromAccountReport(raw_data.liabilities, date);
 
-    let date = new Date(Date.parse(raw_data.date));
-    let expenses_data = gatherFromDeltaReport(date, raw_data.expenses.accounts);
-    let income_data   = gatherFromDeltaReport(date, raw_data.income.accounts);
-
-    let equity_data = [];
-    let keys = Object.keys(raw_data.equity).sort();
-    for (let i = 0; i < keys.length; i ++) {
-        let key = keys[i];
-        equity_data.push({ name: key, amount: raw_data.equity[key] });
-    }
-    equity_data = { 'Start of Period': equity_data };
+    let expenses_data = gatherFromBasicReport(raw_data.expenses, date);
+    let income_data   = gatherFromBasicReport(raw_data.income, date);
+    let equity_data   = gatherFromBasicReport(raw_data.equity, date, 'Start of Period');
 
     let assets_total      = renderComponent('assets',      assets_data);
     let equity_total      = renderComponent('equity',      equity_data,   'Start of Period');
@@ -78,23 +81,29 @@ function renderBalanceSheet(raw_data) {
     });
 }
 
-function renderFinances(month, data) {
-    // document.title = data.when;
-    // document.getElementById('when').innerText = data.when;
+function renderFinances(data, month) {
+    let this_year = new Date().getFullYear();
+    let date = new Date(this_year, month, daysInMonth(this_year, month));
 
-    // document.getElementById('back').style.visibility = (month == 1)  ? 'hidden' : 'visible';
-    // document.getElementById('next').style.visibility = (month == 12) ? 'hidden' : 'visible';
-
-    renderBalanceSheet(data);
+    renderBalanceSheet(data, date);
 }
 
 window.onload = () => {
     // Set up the month picker
-    let visible_month = -1;
+    let visible_month = undefined;
+    let cached_account_data = undefined;
     monthpicker(i => {
         if (i == visible_month) return;
         visible_month = i;
         document.getElementById('month-name').innerText = MONTH_NAMES[i];
-        renderFinancesFor(renderFinances, i);
+
+        if (cached_account_data == undefined) {
+            ajax('/data', account_data => {
+                cached_account_data = account_data;
+                renderFinances(account_data, i);
+            });
+        } else {
+            renderFinances(cached_account_data, visible_month);
+        }
     });
 };

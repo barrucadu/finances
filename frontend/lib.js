@@ -1,13 +1,16 @@
 // Month names
 const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
-// The latest retrieved data.
-var cached_data = undefined;
-
 
 /*****************************************************************************
  * functions
  *****************************************************************************/
+
+// Get the length of a month (0-based)
+function daysInMonth(year, month) {
+    let d = new Date(year, month + 1, 0);
+    return d.getDate();
+}
 
 // Make an ajax request and do something with the result
 function ajax(url, cb) {
@@ -24,15 +27,15 @@ function ajax(url, cb) {
 
 // Render finances for a given month, if the current page allows time
 // scrolling.
-function renderFinancesFor(renderFinances, month=-1) {
-    if(month == -1) {
-        month = new Date().getMonth()+1
+function renderFinances(cb) {
+    if (cached_data == undefined) {
+        ajax('/data', data => {
+            cached_data = data;
+            cb(data);
+        });
+    } else {
+        cb(cached_data);
     }
-
-    ajax(`/data?month=${month+1}`, data => {
-        cached_data = data;
-        renderFinances(month, data);
-    });
 }
 
 
@@ -42,6 +45,11 @@ function strAmount(amount, showPlus=false, showSymbol=true) {
     let amt = Math.abs(amount).toFixed(2);
     let sym = showSymbol ? '£' : '';
     return `${sign}${sym}${amt}`;
+}
+
+// Pretty-print a date.
+function strDate(date) {
+    return `${date.getDate()} ${MONTH_NAMES[date.getMonth()]} ${date.getFullYear()}`;
 }
 
 // Check if an amount if roughly equal to zero.
@@ -84,21 +92,18 @@ function setChartDefaults() {
     });
 }
 
-// Gather balance data from an account report.
-function gatherFromAccountReport(raw_data) {
-    let out = {};
-    for (let key in raw_data) {
-        let datum = raw_data[key];
-        for (let i = 0; i < datum.breakdown.length; i ++) {
-            let account = datum.breakdown[i];
-            if (account.amount == 0) continue;
-            if (!(account.category in out)) {
-                out[account.category] = [];
-            }
-            out[account.category].push({ name: account.name, amount: account.amount });
+// Get the most recent balance from a history report as of the given
+// date.
+function summariseHistory(history, date) {
+    let amount = 0;
+    for (let entry of history) {
+        if (Date.parse(entry.date) <= date.getTime()) {
+            amount = entry.amount;
+        } else {
+            break;
         }
     }
-    return out;
+    return amount;
 }
 
 // Manage the month picker

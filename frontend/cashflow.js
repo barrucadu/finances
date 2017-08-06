@@ -28,8 +28,8 @@ function monthise(history_data) {
 function renderCashflowChart(income_data, expense_data) {
     function gather(raw_data) {
         let out = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-        for (let data of Object.values(raw_data.accounts)) {
-            let summary = monthise(data.history);
+        for (let history of Object.values(raw_data)) {
+            let summary = monthise(history);
             for (let j = 0; j < 12; j ++) {
                 out[j] += summary[j];
             }
@@ -86,11 +86,11 @@ function renderBreakdownChart(ele_id, raw_data) {
         xAxis: { categories: MONTH_NAMES, crosshair: true },
         yAxis: { title: { text: '' }, min: 0, labels: { formatter: function () { return strAmount(this.value); } } },
         tooltip: columnTooltip,
-        series: Object.keys(raw_data.accounts).sort().map(k => {
+        series: Object.keys(raw_data).sort().map(k => {
             return {
                 name: k,
                 color: colour(k),
-                data: monthise(raw_data.accounts[k].history).map(x => zeroish(x) ? NaN : x)
+                data: monthise(raw_data[k]).map(x => zeroish(x) ? NaN : x)
             };
         })
     });
@@ -105,4 +105,4 @@ function renderCharts(income_data, expense_data) {
     renderBreakdownChart('income_breakdown_chart_container',   income_data);
 }
 
-window.onload = () => renderFinancesFor((month, data) => renderCharts(data.income, data.expenses));
+window.onload = () => ajax('/data', account_data => renderCharts(account_data.income, account_data.expenses));
